@@ -1,0 +1,71 @@
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
+
+  SALLOC_ACCOUNT: proj12
+  SBATCH_ACCOUNT: proj12
+  SLURM_ACCOUNT: proj12
+
+  SALLOC_PARTITION: prod
+  SBATCH_PARTITION: prod
+  SLURM_PARTITION: prod
+
+cache:
+  key: ${CI_COMMIT_SHORT_SHA}
+  # key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - spack/
+    - spack-build-*/
+  policy: pull-push
+
+spack_setup:
+  stage: .pre
+  tags:
+    - bb5
+  script:
+    - git clone --depth 1 --single-branch https://github.com/BlueBrain/spack.git
+    - cp /gpfs/bbp.cscs.ch/ssd/apps/hpc/jenkins/config/*.yaml spack/etc/spack
+    - . spack/share/spack/setup-env.sh
+    - spack env create blargh
+    - spack env activate blargh
+    - spack add ${SPACK_PACKAGE}@develop
+    - spack develop -p ${PWD} --no-clone ${SPACK_PACKAGE}@develop
+
+spack_build:
+  stage: build
+  tags:
+    - bb5
+  script:
+    # Git is needed, otherwise the shitty RH version fails
+    - module load unstable git
+    - . spack/share/spack/setup-env.sh
+    - spack env activate blargh
+    - spack install --log-format=junit --log-file=install.xml
+  artifacts:
+    when: always
+    paths:
+      - install.xml
+    reports:
+      junit:
+        - install.xml
+
+ctest:
+  stage: test
+  tags:
+    - bb5
+  script:
+    - unset $(env|awk -F= '/^(PMI|SLURM)_/ {if (match($1, "_(ACCOUNT|PARTITION)$")==0) print $1}')
+    - . spack/share/spack/setup-env.sh
+    - spack env activate blargh
+    - cd $(find . -type d -name "spack-build-*")
+    - i_am_a_failure=0
+    - spack build-env ${SPACK_PACKAGE}@develop ctest -T Test || i_am_a_failure=1
+    - module load unstable spykfunc
+    - python ~matwolf/xunit2junit.py > ../ctest.xml
+    - exit ${i_am_a_failure}
+  artifacts:
+    when: always
+    paths:
+      - ctest.xml
+    reports:
+      junit:
+        - ctest.xml
