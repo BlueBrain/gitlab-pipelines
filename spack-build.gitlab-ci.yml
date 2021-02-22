@@ -11,17 +11,16 @@ variables:
   SBATCH_PARTITION: prod
   SLURM_PARTITION: prod
 
-default:
-  cache:
-    key: ${CI_COMMIT_SHORT_SHA}
-    # key: ${CI_COMMIT_REF_SLUG}
-    paths:
-      - spack/
-      - spack-build-*/
-    policy: pull-push
-
 tags:
   - bb5
+
+cache:
+  key: ${CI_COMMIT_SHORT_SHA}
+  # key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - spack/
+    - spack-build-*/
+  policy: pull-push
 
 spack_setup:
   stage: .pre
