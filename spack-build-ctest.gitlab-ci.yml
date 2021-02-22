@@ -1,10 +1,15 @@
 include:
   - local: spack-build.gitlab-ci.yml
 
-default:
+.spack_test:
   stage: test
+  before_script:
+    - unset $(env|awk -F= '/^(PMI|SLURM)_/ {if (match($1, "_(ACCOUNT|PARTITION)$")==0) print $1}')
+    - . spack/share/spack/setup-env.sh
+    - spack env activate blargh
 
 ctest:
+  extends: .spack_test
   script:
     - cd $(find . -type d -name "spack-build-*")
     - i_am_a_failure=0

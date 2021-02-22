@@ -23,15 +23,7 @@ default:
   tags:
     - bb5
 
-before_script:
-  - unset $(env|awk -F= '/^(PMI|SLURM)_/ {if (match($1, "_(ACCOUNT|PARTITION)$")==0) print $1}')
-  - . spack/share/spack/setup-env.sh
-  - spack env activate blargh
-
 spack_setup:
-  before_script:
-    - 'echo HELLO'
-    - 'echo HELLO'
   stage: .pre
   script:
     - git clone --depth 1 --single-branch https://github.com/BlueBrain/spack.git
@@ -45,6 +37,9 @@ spack_setup:
 spack_build:
   stage: build
   script:
+    - unset $(env|awk -F= '/^(PMI|SLURM)_/ {if (match($1, "_(ACCOUNT|PARTITION)$")==0) print $1}')
+    - . spack/share/spack/setup-env.sh
+    - spack env activate blargh
     # Git is needed, otherwise the shitty RH version fails
     - module load unstable git
     - spack install --log-format=junit --log-file=install.xml
