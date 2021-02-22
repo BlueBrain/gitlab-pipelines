@@ -21,6 +21,7 @@ default:
     policy: pull-push
 
 spack_setup:
+  before_script: []
   stage: .pre
   tags:
     - bb5
