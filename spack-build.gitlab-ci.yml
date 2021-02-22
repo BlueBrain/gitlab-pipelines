@@ -20,6 +20,14 @@ default:
       - spack-build-*/
     policy: pull-push
 
+  before_script:
+    - unset $(env|awk -F= '/^(PMI|SLURM)_/ {if (match($1, "_(ACCOUNT|PARTITION)$")==0) print $1}')
+    - . spack/share/spack/setup-env.sh
+    - spack env activate blargh
+
+  tags:
+    - bb5
+
 spack_setup:
   before_script:
     - 'echo HELLO'
@@ -42,8 +50,6 @@ spack_build:
   script:
     # Git is needed, otherwise the shitty RH version fails
     - module load unstable git
-    - . spack/share/spack/setup-env.sh
-    - spack env activate blargh
     - spack install --log-format=junit --log-file=install.xml
   artifacts:
     when: always
