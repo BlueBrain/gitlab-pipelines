@@ -11,19 +11,19 @@ variables:
   SBATCH_PARTITION: prod
   SLURM_PARTITION: prod
 
-tags:
-  - bb5
-
-cache:
-  key: ${CI_COMMIT_SHORT_SHA}
-  # key: ${CI_COMMIT_REF_SLUG}
-  paths:
-    - spack/
-    - spack-build-*/
-  policy: pull-push
+default:
+  cache:
+    key: ${CI_COMMIT_SHORT_SHA}
+    # key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - spack/
+      - spack-build-*/
+    policy: pull-push
 
 spack_setup:
   stage: .pre
+  tags:
+    - bb5
   script:
     - git clone --depth 1 --single-branch https://github.com/BlueBrain/spack.git
     - cp /gpfs/bbp.cscs.ch/ssd/apps/hpc/jenkins/config/*.yaml spack/etc/spack
@@ -35,6 +35,8 @@ spack_setup:
 
 spack_build:
   stage: build
+  tags:
+    - bb5
   script:
     - unset $(env|awk -F= '/^(PMI|SLURM)_/ {if (match($1, "_(ACCOUNT|PARTITION)$")==0) print $1}')
     - . spack/share/spack/setup-env.sh
