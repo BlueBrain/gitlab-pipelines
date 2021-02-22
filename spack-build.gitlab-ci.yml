@@ -1,26 +1,27 @@
-variables:
-  GIT_SUBMODULE_STRATEGY: recursive
+default:
+  variables:
+    GIT_SUBMODULE_STRATEGY: recursive
 
-  DATADIR: /gpfs/bbp.cscs.ch/project/proj12/jenkins/
+    DATADIR: /gpfs/bbp.cscs.ch/project/proj12/jenkins/
 
-  SALLOC_ACCOUNT: proj12
-  SBATCH_ACCOUNT: proj12
-  SLURM_ACCOUNT: proj12
+    SALLOC_ACCOUNT: proj12
+    SBATCH_ACCOUNT: proj12
+    SLURM_ACCOUNT: proj12
 
-  SALLOC_PARTITION: prod
-  SBATCH_PARTITION: prod
-  SLURM_PARTITION: prod
+    SALLOC_PARTITION: prod
+    SBATCH_PARTITION: prod
+    SLURM_PARTITION: prod
 
-cache:
-  key: ${CI_COMMIT_SHORT_SHA}
-  # key: ${CI_COMMIT_REF_SLUG}
-  paths:
-    - spack/
-    - spack-build-*/
-  policy: pull-push
+  cache:
+    key: ${CI_COMMIT_SHORT_SHA}
+    # key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - spack/
+      - spack-build-*/
+    policy: pull-push
 
-tags:
-  - bb5
+  tags:
+    - bb5
 
 spack_setup:
   stage: .pre
