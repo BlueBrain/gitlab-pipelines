@@ -21,7 +21,8 @@ default:
     policy: pull-push
 
 spack_setup:
-  before_script: []
+  before_script:
+    - 'echo HELLO'
   stage: .pre
   tags:
     - bb5
