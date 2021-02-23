@@ -7,7 +7,6 @@ include:
   tags:
     - bb5
   cache:
-    <<: *default_cache
     policy: pull
   before_script:
     - unset $(env|awk -F= '/^(PMI|SLURM)_/ {if (match($1, "_(ACCOUNT|PARTITION)$")==0) print $1}')
