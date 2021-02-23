@@ -9,18 +9,24 @@ build:
       - foo/
 
 test 1:
+  needs:
+    - build
   tags:
     - bb5
   script:
     - ls
 
 test 2:
+  needs:
+    - build
   tags:
     - bb5
   script:
     - ls
 
 test 3:
+  needs:
+    - build
   tags:
     - bb5
   script:
