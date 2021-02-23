@@ -9,29 +9,18 @@ build:
     paths:
       - foo/
 
-test 1:
+test 1: &foo
   needs:
     - build
   stage: test
   tags:
     - bb5
   script:
-    - ls
+    - pwd
+    - ls -l foo
 
-test 2:
-  needs:
-    - build
-  stage: test
-  tags:
-    - bb5
-  script:
-    - ls
-
-test 3:
-  needs:
-    - build
-  stage: test
-  tags:
-    - bb5
-  script:
-    - ls
+test 2: *foo
+test 3: *foo
+test 4: *foo
+test 5: *foo
+test 6: *foo
