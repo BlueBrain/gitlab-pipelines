@@ -11,14 +11,6 @@ variables:
   SBATCH_PARTITION: prod
   SLURM_PARTITION: prod
 
-cache: &global_cache
-  key: ${CI_COMMIT_SHORT_SHA}
-  # key: ${CI_COMMIT_REF_SLUG}
-  paths:
-    - spack/
-    - spack-build-*/
-  policy: pull-push
-
 spack_setup:
   stage: .pre
   tags:
@@ -31,11 +23,15 @@ spack_setup:
     - spack env activate blargh
     - spack add ${SPACK_PACKAGE}@develop${SPACK_SPEC}
     - spack develop -p ${PWD} --no-clone ${SPACK_PACKAGE}@develop${SPACK_SPEC}
+  artifacts:
+    paths:
+      - spack/
 
 spack_build:
   stage: build
   tags:
     - bb5
+  dependencies: spack_setup
   script:
     - unset $(env|awk -F= '/^(PMI|SLURM)_/ {if (match($1, "_(ACCOUNT|PARTITION)$")==0) print $1}')
     - . spack/share/spack/setup-env.sh
@@ -47,6 +43,8 @@ spack_build:
     when: always
     paths:
       - install.xml
+      - spack/
+      - spack-build-*/
     reports:
       junit:
         - install.xml
