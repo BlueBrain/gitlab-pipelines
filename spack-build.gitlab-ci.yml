@@ -30,8 +30,8 @@ spack_setup:
     - . spack/share/spack/setup-env.sh
     - spack env create blargh
     - spack env activate blargh
-    - spack add ${SPACK_PACKAGE}@develop
-    - spack develop -p ${PWD} --no-clone ${SPACK_PACKAGE}@develop
+    - spack add ${SPACK_PACKAGE}@develop${SPACK_SPEC}
+    - spack develop -p ${PWD} --no-clone ${SPACK_PACKAGE}@develop${SPACK_SPEC}
 
 spack_build:
   stage: build
