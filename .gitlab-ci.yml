@@ -1,6 +1,7 @@
 build:
   tags:
     - bb5
+  stage: build
   script:
     - mkdir -p foo
     - touch foo/{spam,ham,eggs}
