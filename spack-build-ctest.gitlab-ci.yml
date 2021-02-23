@@ -6,9 +6,6 @@ include:
   resource_group: test
   tags:
     - bb5
-  cache:
-    <<: *global_cache
-    policy: pull
   before_script:
     - unset $(env|awk -F= '/^(PMI|SLURM)_/ {if (match($1, "_(ACCOUNT|PARTITION)$")==0) print $1}')
     - . spack/share/spack/setup-env.sh
