@@ -4,7 +4,8 @@ include:
 .spack_test:
   stage: test
   resource_group: test
-  dependencies: spack_build
+  dependencies:
+    - spack_build
   tags:
     - bb5
   before_script:

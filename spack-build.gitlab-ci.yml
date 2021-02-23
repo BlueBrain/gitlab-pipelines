@@ -31,7 +31,8 @@ spack_build:
   stage: build
   tags:
     - bb5
-  dependencies: spack_setup
+  dependencies:
+    - spack_setup
   script:
     - unset $(env|awk -F= '/^(PMI|SLURM)_/ {if (match($1, "_(ACCOUNT|PARTITION)$")==0) print $1}')
     - . spack/share/spack/setup-env.sh
