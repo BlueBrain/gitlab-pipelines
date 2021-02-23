@@ -1,0 +1,33 @@
+build:
+  tags:
+    - bb5
+  script:
+    - mkdir -p foo
+    - touch foo/{spam,ham,eggs}
+  artifacts:
+    paths:
+      - foo/
+
+test 1:
+  tags:
+    - bb5
+  script:
+    - ls
+  dependencies:
+    - build
+
+test 2:
+  tags:
+    - bb5
+  script:
+    - ls
+  dependencies:
+    - build
+
+test 3:
+  tags:
+    - bb5
+  script:
+    - ls
+  dependencies:
+    - build
