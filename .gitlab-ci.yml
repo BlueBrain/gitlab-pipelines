@@ -24,3 +24,7 @@ test 3: *foo
 test 4: *foo
 test 5: *foo
 test 6: *foo
+
+touchdetector:
+  stage: test
+  trigger: hpc/touchdetector
