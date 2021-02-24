@@ -27,4 +27,6 @@ test 6: *foo
 
 touchdetector:
   stage: test
-  trigger: hpc/touchdetector
+  trigger:
+    project: hpc/touchdetector
+    branch: ci
