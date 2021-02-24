@@ -19,8 +19,8 @@ ctest:
     - cd $(find . -type d -maxdepth 1 -name "spack-build-*")
     - i_am_a_failure=0
     - spack build-env ${SPACK_PACKAGE}@develop${SPACK_SPEC} ctest -T Test || i_am_a_failure=1
-    - module load unstable spykfunc
-    - python ~matwolf/xunit2junit.py > ../ctest.xml
+    - module load unstable unit-test-translator
+    - cmake2junit > ../ctest.xml
     - exit ${i_am_a_failure}
   artifacts:
     when: always
