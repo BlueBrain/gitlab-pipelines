@@ -1,7 +1,7 @@
 touchdetector:
   stage: test
   variables:
-    PARENT_REF: ${CI_COMMIT_SHA}
+    CI_PROJECT_PARENT_REF: ${CI_COMMIT_SHA}
   trigger:
     project: hpc/touchdetector
     branch: ci
