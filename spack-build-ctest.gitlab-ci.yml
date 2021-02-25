@@ -1,18 +1,6 @@
 include:
   - local: spack-build.gitlab-ci.yml
 
-.spack_test:
-  stage: test
-  resource_group: test
-  tags:
-    - bb5
-  before_script:
-    - unset $(env|awk -F= '/^(PMI|SLURM)_/ {if (match($1, "_(ACCOUNT|PARTITION)$")==0) print $1}')
-    - . spack/share/spack/setup-env.sh
-    - spack env activate blargh
-  script:
-    - sh .ci/test_${CI_JOB_NAME}.sh
-
 ctest:
   extends: .spack_test
   script:
