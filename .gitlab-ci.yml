@@ -4,6 +4,7 @@ foo:
     - bb5
   script:
     - echo ${PWD}
+    - env
 
 touchdetector:
   stage: test
