@@ -1,10 +1,22 @@
+cache:
+  paths:
+    env.txt
+
 foo:
-  stage: build
+  stage: .pre
   tags:
     - bb5
   script:
     - echo ${PWD}
-    - env
+    - env > env.txt
+    - ls
+
+bar:
+  stage: build
+  tags:
+    - bb5
+  script:
+    - ls
 
 touchdetector:
   stage: test
