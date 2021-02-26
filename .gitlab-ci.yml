@@ -1,3 +1,10 @@
+foo:
+  stage: build
+  tags:
+    - bb5
+  script:
+    - echo ${PWD}
+
 touchdetector:
   stage: test
   variables:
