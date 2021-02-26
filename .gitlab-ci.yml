@@ -10,19 +10,14 @@ foo:
   script:
     - echo ${PWD}
     - env > env.txt
-    - ls
-  after_script:
-    - ls
+    - ls -R ../../..
 
 bar:
   stage: build
   tags:
     - bb5
-  before_script:
-    - ls $HOME
   script:
-    - ls
-    - pwd
+    - ls -R ../../..
 
 touchdetector:
   stage: test
