@@ -18,7 +18,7 @@ bar:
   tags:
     - bb5
   before_script:
-    - ls
+    - ls $HOME
   script:
     - ls
 
