@@ -1,4 +1,5 @@
 cache:
+  key: foo
   paths:
     - env.txt
 
