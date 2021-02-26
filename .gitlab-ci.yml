@@ -1,6 +1,6 @@
 cache:
   paths:
-    env.txt
+    - env.txt
 
 foo:
   stage: .pre
