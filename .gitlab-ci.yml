@@ -21,6 +21,7 @@ bar:
     - ls $HOME
   script:
     - ls
+    - pwd
 
 touchdetector:
   stage: test
