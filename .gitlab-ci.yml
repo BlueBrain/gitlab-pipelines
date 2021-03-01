@@ -12,4 +12,6 @@ spam:
 triggered:
   stage: build
   trigger:
-    include: putin.yml
+    include:
+      - artifact: putin.yml
+        job: spacm
