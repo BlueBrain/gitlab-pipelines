@@ -14,4 +14,4 @@ triggered:
   trigger:
     include:
       - artifact: putin.yml
-        job: spacm
+        job: spam
