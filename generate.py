@@ -2,6 +2,7 @@ TEMPLATE="""
 setup_{what}:
     tags:
       - bb5
+    stage: build
     script:
       - echo {who} > {where}.txt
     artifacts:
@@ -9,6 +10,7 @@ setup_{what}:
         - {where}.txt
 
 build_{what}:
+    stage: build
     needs: [setup_{what}]
     script:
       - for i in $(seq 1 10); do cat {where}.txt >> {where}_again.txt; done
@@ -17,16 +19,19 @@ build_{what}:
         - {where}_again.txt
 
 test_{what} 1:
+    stage: build
     needs: [build_{what}]
     script:
       - cat {where}_again.txt
 
 test_{what} 2:
+    stage: build
     needs: [build_{what}]
     script:
       - cat {where}_again.txt
 
 test_{what} 3:
+    stage: build
     needs: [build_{what}]
     script:
       - cat {where}_again.txt
