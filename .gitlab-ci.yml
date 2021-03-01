@@ -1,28 +1,16 @@
-rules:
-  - if: '$CI_PIPELINE_SOURCE != "parent_pipeline"'
-    when: never
-
 spam:
   stage: .pre
   tags:
     - bb5
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "parent_pipeline"'
-      when: never
-    - if: '$CI_PIPELINE_SOURCE != "parent_pipeline"'
-      when: always
-  parallel:
-    matrix:
-      - MY_SECRETION: [barf, blarf]
-  trigger:
-    include:
-      - local: .gitlab-ci.yml
-        variables:
-          MY_SECRET: ${MY_SECRETION}
+  script:
+    - module load unstable python
+    - python generate.py > putin.yml
+  artifacts:
+    paths:
+      - putin.yml
 
-ham:
+triggered:
   stage: build
   tags:
     - bb5
-  script:
-    - echo ${MY_SECRET}
+  trigger: putin.yml
