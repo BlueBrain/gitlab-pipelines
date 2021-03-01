@@ -2,7 +2,7 @@ TEMPLATE="""
 setup_{what}:
     tags:
       - bb5
-    stage: build
+    stage: .pre
     script:
       - echo {who} > {where}.txt
     artifacts:
@@ -19,19 +19,19 @@ build_{what}:
         - {where}_again.txt
 
 test_{what} 1:
-    stage: build
+    stage: test
     needs: [build_{what}]
     script:
       - cat {where}_again.txt
 
 test_{what} 2:
-    stage: build
+    stage: test
     needs: [build_{what}]
     script:
       - cat {where}_again.txt
 
 test_{what} 3:
-    stage: build
+    stage: test
     needs: [build_{what}]
     script:
       - cat {where}_again.txt
