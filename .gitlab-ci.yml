@@ -1,30 +1,30 @@
-cache:
-  key: foo
-  paths:
-    - env.txt
+rules:
+  - if: '$CI_PIPELINE_SOURCE != "parent_pipeline"'
+    when: never
 
-foo:
+spam:
   stage: .pre
   tags:
     - bb5
   script:
-    - echo ${PWD}
-    - env > env.txt
-    - ls -R ../../..
-    - ls -a $HOME
+    - echo "I'm just a piece of shit job to trigger things!"
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "parent_pipeline"'
+      when: never
+    - if: '$CI_PIPELINE_SOURCE != "parent_pipeline"'
+      when: always
+  parallel:
+    matrix:
+      - MY_SECRETION: [barf, blarf]
+  trigger:
+    include:
+      - local: .gitlab-ci.yml
+        variables:
+          MY_SECRET: ${MY_SECRETION}
 
-bar:
+ham:
   stage: build
   tags:
     - bb5
   script:
-    - ls -R ../../..
-    - ls -a $HOME
-
-touchdetector:
-  stage: test
-  variables:
-    CI_PROJECT_PARENT_REF: ${CI_COMMIT_SHA}
-  trigger:
-    project: hpc/touchdetector
-    branch: ci
+    - echo ${MY_SECRET}
