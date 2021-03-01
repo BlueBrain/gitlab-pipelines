@@ -11,4 +11,5 @@ spam:
 
 triggered:
   stage: build
-  trigger: putin.yml
+  trigger:
+    include: putin.yml
