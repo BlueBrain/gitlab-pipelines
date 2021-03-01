@@ -6,8 +6,6 @@ spam:
   stage: .pre
   tags:
     - bb5
-  script:
-    - echo "I'm just a piece of shit job to trigger things!"
   rules:
     - if: '$CI_PIPELINE_SOURCE == "parent_pipeline"'
       when: never
