@@ -11,6 +11,4 @@ spam:
 
 triggered:
   stage: build
-  tags:
-    - bb5
   trigger: putin.yml
