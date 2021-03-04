@@ -1,0 +1,6 @@
+test_touchdetector:
+  stage: test
+  trigger:
+    project: hpc/touchdetector
+    branch: @TD_TEST_BRANCH@
+    strategy: depend

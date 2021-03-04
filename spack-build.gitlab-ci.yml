@@ -1,7 +1,16 @@
 variables:
-  GIT_SUBMODULE_STRATEGY: recursive
+  # Work in one directory
+  bb5_build_dir: pipeline
 
-  DATADIR: /gpfs/bbp.cscs.ch/project/proj12/jenkins/
+  # This will be overwritten in the first job only to provide the proper
+  # checkout and setup
+  GIT_STRATEGY: none
+  # Try to force a simpler directory structure
+  GIT_CLONE_PATH: ${CI_BUILDS_DIR}/${BB5_PIPELINE_ID}/src
+
+  SPACK_ROOT: spack # ${CI_BUILDS_DIR/${BB5_PIPELINE_ID}/spack
+
+  DATADIR: /gpfs/bbp.cscs.ch/project/proj12/jenkins
 
   SALLOC_ACCOUNT: proj12
   SBATCH_ACCOUNT: proj12
@@ -11,23 +20,17 @@ variables:
   SBATCH_PARTITION: prod
   SLURM_PARTITION: prod
 
-default:
-  cache:
-    key: ${CI_COMMIT_SHORT_SHA}
-    # key: ${CI_COMMIT_REF_SLUG}
-    paths:
-      - spack/
-      - spack-build-*/
-    policy: pull-push
-
 spack_setup:
   stage: .pre
   tags:
     - bb5
+  variables:
+    GIT_STRATEGY: clone
+    GIT_SUBMODULE_STRATEGY: recursive
   script:
-    - git clone --depth 1 --single-branch https://github.com/BlueBrain/spack.git
-    - cp /gpfs/bbp.cscs.ch/ssd/apps/hpc/jenkins/config/*.yaml spack/etc/spack
-    - . spack/share/spack/setup-env.sh
+    - git clone --depth 1 --single-branch https://github.com/BlueBrain/spack.git "${SPACK_ROOT}"
+    - cp /gpfs/bbp.cscs.ch/ssd/apps/hpc/jenkins/config/*.yaml "${SPACK_ROOT}/etc/spack"
+    - . "${SPACK_ROOT}/share/spack/setup-env.sh"
     - spack env create blargh
     - spack env activate blargh
     - spack add ${SPACK_PACKAGE}@develop${SPACK_SPEC}
@@ -39,7 +42,7 @@ spack_build:
     - bb5
   script:
     - unset $(env|awk -F= '/^(PMI|SLURM)_/ {if (match($1, "_(ACCOUNT|PARTITION)$")==0) print $1}')
-    - . spack/share/spack/setup-env.sh
+    - . "${SPACK_ROOT}/share/spack/setup-env.sh"
     - spack env activate blargh
     # Git is needed, otherwise the shitty RH version fails
     - module load unstable git
@@ -54,12 +57,13 @@ spack_build:
 
 .spack_test:
   stage: test
-  resource_group: test
   tags:
     - bb5
   before_script:
     - unset $(env|awk -F= '/^(PMI|SLURM)_/ {if (match($1, "_(ACCOUNT|PARTITION)$")==0) print $1}')
-    - . spack/share/spack/setup-env.sh
+    - . "${SPACK_ROOT}/share/spack/setup-env.sh"
     - spack env activate blargh
   script:
-    - sh .ci/test_${CI_JOB_NAME}.sh
+    - mkdir test_${CI_JOB_NAME}
+    - cd test_${CI_JOB_NAME}
+    - sh ../.ci/test_${CI_JOB_NAME}.sh
