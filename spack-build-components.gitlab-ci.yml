@@ -76,8 +76,12 @@ variables:
     - env -0 | sort -z | xargs -0 -L 1 echo > initial_environment.env
     # SPACK_ROOT is passed in by the dotenv artifacts of a previous job.
     - . ${SPACK_ROOT}/share/spack/setup-env.sh
-    # Tell Spack which working directory to use in this job.
-    - spack config --scope site add "config:build_stage:${SPACK_BUILD}"
+    # Tell Spack which working directory to use in this job. It would be nice
+    # if this first part could be done with `spack config add`...
+    - SPACK_CONFIG=${PWD}/spack-config
+    - mkdir ${SPACK_CONFIG}
+    - echo -e "config:\n  build_stage:\n  - ${SPACK_BUILD}" > ${SPACK_CONFIG}/config.yaml
+    - spack --config-scope ${SPACK_CONFIG} config blame config
     # Modify the Spack recipe so the develop version points at ${SPACK_PACKAGE_REF}
     - SPACK_PACKAGE_FILE="$(spack location -p ${SPACK_PACKAGE})/package.py"
     # Remove any commit/tag/branch identifier from the line containing the
@@ -127,7 +131,7 @@ variables:
     # Install that new version. Use an absolute path for install.xml so it ends
     # up in the original job working directory even if that's no longer the
     # working directory.
-    - spack install -j${SLURM_JOB_CPUS_PER_NODE} --log-format=junit --log-file=${CI_PROJECT_DIR}/install.xml --keep-stage ${SPACK_FULL_SPEC}
+    - spack --config-scope ${SPACK_CONFIG} install -j${SLURM_JOB_CPUS_PER_NODE} --log-format=junit --log-file=${CI_PROJECT_DIR}/install.xml --keep-stage ${SPACK_FULL_SPEC}
     # Report ccache statistics if ccache was enabled.
     - if [ ${SPACK_USE_CCACHE+x} ]; then ccache -s; fi
     # Copy some files to the original working directory that artifacts are
