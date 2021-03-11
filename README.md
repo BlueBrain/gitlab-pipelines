@@ -38,7 +38,7 @@ The following variables are used in the template:
 Say you have a project called `MyAwesomeCode`,
 which has an equivalent Spack package `my-awesome-code`.
 To use these templates in your own GitLab pipeline,
-include them and set a variable to inform the template about your 
+include them and set a variable to inform the template about your package:
 ```yaml
 include:
   - project: hpc/gitlab-pipelines
@@ -131,3 +131,18 @@ CI build of the second package uses the CI build of the first one.
 Note that because in this example `build:neuron` and `test_coreneuron` have
 the same dependencies (`needs: ["build:coreneuron"]`) they will execute in
 parallel in the pipeline.
+
+# Other useful templates
+
+This repository also includes a template,
+`github-project-pipelines.gitlab-ci.yml`, that configures sensible default
+behaviour for a GitHub repository that is mirrored to GitLab for CI purposes.
+It can be included as follows:
+```yaml
+include:
+  - project: hpc/gitlab-pipelines
+    file: github-project-pipelines.gitlab-ci.yml
+```
+With this configuration the GitLab CI will run every time an update is made to
+a pull request on GitHub. It will also run when changes are pushed to the
+default branch.

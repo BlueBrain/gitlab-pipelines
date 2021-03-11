@@ -1,0 +1,13 @@
+# Sensible defaults for open source projects on GitHub that are mirrored to
+# GitLab. For example, CoreNEURON.
+workflow:
+  rules:
+    # Run on changes that are pushed to the default branch
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    # Don't run on push events for now to try and save resources
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+      when: never
+    # Don't run on MR events because we also get "external_pull_request_event" from GitHub.
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    - when: always
