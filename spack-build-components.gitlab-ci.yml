@@ -1,0 +1,228 @@
+variables:
+  # Default values for Slurm
+  SALLOC_ACCOUNT: proj12
+  SBATCH_ACCOUNT: proj12
+  SLURM_ACCOUNT: proj12
+  SALLOC_PARTITION: prod
+  SBATCH_PARTITION: prod
+  SLURM_PARTITION: prod
+  # We never use the runner's native git checkout ability. We use `git clone`
+  # explicitly to get Spack, and then Spack itself clones any projects we want
+  # to build.
+  GIT_STRATEGY: none
+  # Make ${CI_BUILDS_DIR} points to a top-level pipeline-global directory.
+  bb5_build_dir: pipeline
+  # Shared input directory for HPC integration tests.
+  DATADIR: /gpfs/bbp.cscs.ch/project/proj12/jenkins
+
+# Set up a clone of Spack for use in this pipeline and export a variable called
+# SPACK_ROOT that points to it.
+.spack_setup:
+  stage: .pre
+  variables:
+    # The clone of spack can be right at the top level in the pipeline-global
+    # directory (without this the path to the project running the pipeline will
+    # be inserted into the directory structure).
+    GIT_CLONE_PATH: ${CI_BUILDS_DIR}
+    # What version of BlueBrain/spack to use. You can override this if need be.
+    SPACK_BRANCH: develop
+  tags:
+    - bb5
+  script:
+    - echo Using ${PWD} as a working directory common to the whole pipeline...
+    - git clone --depth 1 --single-branch --branch ${SPACK_BRANCH} https://github.com/BlueBrain/spack.git spack
+    - cp /gpfs/bbp.cscs.ch/ssd/apps/hpc/jenkins/config/*.yaml spack/etc/spack
+    - SPACK_ROOT=${PWD}/spack
+    - echo "SPACK_ROOT=${SPACK_ROOT}" > spack_dirs.env
+    - . ${SPACK_ROOT}/share/spack/setup-env.sh
+  artifacts:
+    when: always
+    reports:
+      dotenv: spack_dirs.env
+
+# Augmented version of .spack_setup that additionally enables ccache in the
+# Spack configuration and exports a variable SPACK_USE_CCACHE=true for use in
+# later stages.
+.spack_setup_ccache:
+  extends: .spack_setup
+  script:
+    - !reference [.spack_setup, script]
+    # Enable ccache
+    - spack config --scope site add "config:ccache:true"
+    # Dump the configuration for debugging/reference purposes.
+    - spack config get config
+    # In principle later stages could use some kind of
+    # `spack config get config | grep ccache` construction, but this is simpler
+    - echo "SPACK_USE_CCACHE=true" >> spack_dirs.env
+
+.spack_build:
+  stage: build
+  tags:
+    - bb5
+  variables:
+    # Work in a directory unique to this job.
+    GIT_CLONE_PATH: ${CI_BUILDS_DIR}/${CI_JOB_ID}
+    # By default we update the `develop` version of the Spack recipe to pointw
+    # to this commit ("the commit the pipeline is being run on"). This variable
+    # can be overriden, also with tag="..." or branch="...".
+    SPACK_PACKAGE_REF: commit="${CI_COMMIT_SHA}"
+  before_script:
+    # Change the staging directory to something specific to this GitLab CI job.
+    # This stops Spack from cleaning up previous build directories, which
+    # causes errors if you try to run "test:library" in parallel with
+    # "build:application_that_depends_on_library".
+    - SPACK_BUILD="${PWD}/spack-build"
+    # Dump the environment for debugging purposes
+    - env -0 | sort -z | xargs -0 -L 1 echo > initial_environment.env
+    # SPACK_ROOT is passed in by the dotenv artifacts of a previous job.
+    - . ${SPACK_ROOT}/share/spack/setup-env.sh
+    # Tell Spack which working directory to use in this job.
+    - spack config --scope site add "config:build_stage:${SPACK_BUILD}"
+    # Modify the Spack recipe so the develop version points at ${SPACK_PACKAGE_REF}
+    - SPACK_PACKAGE_FILE="$(spack location -p ${SPACK_PACKAGE})/package.py"
+    # Remove any commit/tag/branch identifier from the line containing the
+    # develop version and substitute in our desired commit hash. Don't
+    # change anything if ${SPACK_PACKAGE_REF} is unset or an empty string.
+    - if [ "${SPACK_PACKAGE_REF}" ]; then sed -i -e "/^\s*version\s*(\s*\(['\"]\)develop\1/ { s/,\s*\(commit\|tag\|branch\)=\([\"']\)[^\2]\+\2//g; s#)#, ${SPACK_PACKAGE_REF})#; }" "${SPACK_PACKAGE_FILE}"; fi
+    # Get the hash of the version we're about to install. First, construct the
+    # full spec. This includes ${SPACK_PACKAGE_COMPILER} and ${SPACK_PACKAGE_DEPENDENCIES} if
+    # they are not empty.
+    - SPACK_FULL_SPEC=${SPACK_PACKAGE}@develop${SPACK_PACKAGE_COMPILER:+%}${SPACK_PACKAGE_COMPILER}${SPACK_PACKAGE_SPEC}${SPACK_PACKAGE_DEPENDENCIES:+^}${SPACK_PACKAGE_DEPENDENCIES}
+    # Then extract the hash
+    - SPACK_INSTALLED_HASH=$(spack spec --json ${SPACK_FULL_SPEC} 2>/dev/null | python -c "import json, sys; print(json.loads(sys.stdin.read())[\"spec\"][0][\"${SPACK_PACKAGE}\"][\"hash\"])")
+    - echo "Preparing to install ${SPACK_FULL_SPEC} (${SPACK_INSTALLED_HASH})"
+    # Construct the directories Spack is going to use to build the package.
+    # For a CMake project the source directory will be:
+    #   ${SPACK_STAGE_DIR}/spack-src
+    # and the build directoy will by default be
+    #   ${SPACK_STAGE_DIR}/spack-build-{short_hash}
+    # TODO: to improve ccache support, drop the {short_hash} part. This needs a
+    # change to `cmake.py` in Spack.
+    - SPACK_STAGE_DIR=${SPACK_BUILD}/spack-stage-${SPACK_PACKAGE}-develop-${SPACK_INSTALLED_HASH}
+    - SPACK_BUILD_DIR=${SPACK_STAGE_DIR}/spack-build-${SPACK_INSTALLED_HASH:0:7}
+    - SPACK_SOURCE_DIR=${SPACK_STAGE_DIR}/spack-src
+    # ccache-specific setup, only if it was enabled
+    - if [ ${SPACK_USE_CCACHE+x} ]; then
+    # Load a more modern ccache version.
+    - module load unstable ccache
+    # Tell ccache to use paths relative to this directory, to avoid polluting
+    # the cache with pipeline- and job-specific paths.
+    - export CCACHE_BASEDIR=${SPACK_STAGE_DIR}
+    - export CCACHE_DIR=${CI_PROJECT_DIR}/ccache
+    # For debugging cache misses.
+    # - export CCACHE_DEBUG=true
+    # - export CCACHE_DEBUGDIR=${CI_PROJECT_DIR}/ccache_debug/
+    # We can't assume there was a valid GitLab cache, so create empty
+    # directories if needed.
+    - mkdir -p ${CCACHE_BASEDIR} # ${CCACHE_DEBUGDIR}
+    # Zero the statistics.
+    - ccache -z
+    - ccache -s
+    - fi
+    # end ccache-specific setup
+  script:
+    # Spack needs a recent Git version.
+    - module load unstable git
+    # Install that new version. Use an absolute path for install.xml so it ends
+    # up in the original job working directory even if that's no longer the
+    # working directory.
+    - spack install -j${SLURM_JOB_CPUS_PER_NODE} --log-format=junit --log-file=${CI_PROJECT_DIR}/install.xml --keep-stage ${SPACK_FULL_SPEC}
+    # Report ccache statistics if ccache was enabled.
+    - if [ ${SPACK_USE_CCACHE+x} ]; then ccache -s; fi
+    # Copy some files to the original working directory that artifacts are
+    # saved from.
+    - cp ${SPACK_STAGE_DIR}/spack-{build-env,build-out,configure-args}.txt ${CI_PROJECT_DIR}/
+    # Append to a list /hash1/hash2/hash3/... of packages that have been
+    # installed in this chain of .spack_build jobs.
+    - SPACK_PACKAGE_DEPENDENCIES=${SPACK_PACKAGE_DEPENDENCIES}/${SPACK_INSTALLED_HASH}
+    - echo "SPACK_ROOT=${SPACK_ROOT}" > ${CI_PROJECT_DIR}/spack_build_dir.env # so other jobs don't need to depend explicitly on spack_setup
+    - if [ ${SPACK_USE_CCACHE+x} ]; then echo "SPACK_USE_CCACHE=${SPACK_USE_CCACHE}" >> ${CI_PROJECT_DIR}/spack_build_dir.env; fi
+    - echo "SPACK_BUILD_DIR=${SPACK_BUILD_DIR}" >> ${CI_PROJECT_DIR}/spack_build_dir.env
+    - echo "SPACK_FULL_SPEC=${SPACK_FULL_SPEC}" >> ${CI_PROJECT_DIR}/spack_build_dir.env
+    - echo "SPACK_SOURCE_DIR=${SPACK_SOURCE_DIR}" >> ${CI_PROJECT_DIR}/spack_build_dir.env
+    - echo "SPACK_PACKAGE_DEPENDENCIES=${SPACK_PACKAGE_DEPENDENCIES}" >> ${CI_PROJECT_DIR}/spack_build_dir.env
+  needs: ["spack_setup"]
+  artifacts:
+    when: always
+    paths:
+      - install.xml
+      - initial_environment.env
+      - spack-build-env.txt
+      - spack-build-out.txt
+      - spack-configure-args.txt
+    reports:
+      junit: install.xml
+      dotenv: spack_build_dir.env
+  cache:
+    key: ${SPACK_PACKAGE}-${SPACK_PACKAGE_COMPILER}
+    paths:
+      - ccache/
+    policy: pull-push
+
+.spack_test:
+  stage: test
+  tags:
+    - bb5
+  variables:
+    # Just running tests, no need to check anything out
+    GIT_STRATEGY: none
+    # Make CI_BUILDS_DIR be the top-level pipeline-global directory
+    bb5_build_dir: pipeline
+    GIT_CLONE_PATH: ${CI_BUILDS_DIR}/${CI_JOB_ID}
+  before_script:
+    # Dump the environment for debugging purposes
+    - env -0 | sort -z | xargs -0 -L 1 echo > initial_environment.env
+    # The test job (in the GitLab sense) is 1 task with ${SLURM_CPUS_PER_TASK}
+    # cores allocated to it; tell CTest to use those cores.
+    - export CTEST_PARALLEL_LEVEL=${SLURM_CPUS_PER_TASK}
+    # This is a bit hacky; this will be set by the BB5 runner to the number of
+    # cores allocated to this CI job, but it is inherited as a default by
+    # child invocations of srun. This means that if a test does something like
+    # `srun -n 2 path/to/executable` then it fails, because this is interpreted
+    # as a request for 2*SLURM_CPUS_PER_TASK CPUs, which cannot be accomodated
+    # by construction.
+    - export SLURM_CPUS_PER_TASK=1
+    # These PMI_* variables cause problems in CoreNEURON tests if they are not
+    # unset, but @olupton has not fully understood the mechanism and if a
+    # better fix is possible.
+    - unset $(env|awk -F= '/^PMI_/ {if (match($1, "_(ACCOUNT|PARTITION)$")==0) print $1}')
+    # Load the Spack installation that knows about the package to be tested.
+    - . ${SPACK_ROOT}/share/spack/setup-env.sh
+  script:
+    # Leaving this here for compatibility. Note that this will stop `srun`
+    # commands inside the test script from using the resources allocated to the
+    # GitLab CI job and force new Slurm jobs to be scheduled.
+    - unset $(env|awk -F= '/^(PMI|SLURM)_/ {if (match($1, "_(ACCOUNT|PARTITION)$")==0) print $1}')
+    - spack load ${SPACK_FULL_SPEC}
+    - sh ${SPACK_SOURCE_DIR}/.ci/test_${CI_JOB_NAME}.sh
+  artifacts:
+    when: always
+    paths:
+      - initial_environment.env
+
+.ctest:
+  extends: .spack_test
+  script:
+    # Change to the build directory of the package being tested. This is
+    # somewhere under the working directory of a previous job in the pipeline.
+    - cd ${SPACK_BUILD_DIR}
+    # Yuck, but otherwise boost unit tests output colour codes as part of
+    # ctest -VV and the XML translation fails.
+    - export BOOST_TEST_COLOR_OUTPUT=no
+    # Make sure we return a helpful exit code.
+    - i_am_a_failure=0
+    - spack build-env ${SPACK_FULL_SPEC} ctest -VV -T Test || i_am_a_failure=1
+    # Save the Testing/ directory as job artifacts
+    - cp -r Testing/ ${CI_PROJECT_DIR}/
+    # Make an XML report file the GitLab UI can display
+    - module load unstable unit-test-translator
+    - cmake2junit > ${CI_PROJECT_DIR}/ctest.xml
+    - exit ${i_am_a_failure}
+  artifacts:
+    when: always
+    paths:
+      # Ugly to re-declare this from .spack_test, but oh well.
+      - initial_environment.env
+      - Testing/
+    reports:
+      junit: ctest.xml
