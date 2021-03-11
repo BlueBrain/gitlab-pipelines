@@ -89,7 +89,8 @@ variables:
     # they are not empty.
     - SPACK_FULL_SPEC=${SPACK_PACKAGE}@develop${SPACK_PACKAGE_COMPILER:+%}${SPACK_PACKAGE_COMPILER}${SPACK_PACKAGE_SPEC}${SPACK_PACKAGE_DEPENDENCIES:+^}${SPACK_PACKAGE_DEPENDENCIES}
     # Then extract the hash
-    - SPACK_INSTALLED_HASH=$(spack spec --json ${SPACK_FULL_SPEC} 2>/dev/null | python -c "import json, sys; print(json.loads(sys.stdin.read())[\"spec\"][0][\"${SPACK_PACKAGE}\"][\"hash\"])")
+    - JSON_SPEC=$(spack spec --json ${SPACK_FULL_SPEC})
+    - SPACK_INSTALLED_HASH=$(echo "${JSON_SPEC}" | python -c "import json, sys; print(json.loads(sys.stdin.read())[\"spec\"][0][\"${SPACK_PACKAGE}\"][\"hash\"])")
     - echo "Preparing to install ${SPACK_FULL_SPEC} (${SPACK_INSTALLED_HASH})"
     # Construct the directories Spack is going to use to build the package.
     # For a CMake project the source directory will be:
