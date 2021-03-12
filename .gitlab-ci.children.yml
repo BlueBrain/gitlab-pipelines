@@ -2,5 +2,11 @@ test_touchdetector:
   stage: test
   trigger:
     project: hpc/touchdetector
-    branch: @TD_TEST_BRANCH@
+    branch: @TEST_BRANCH@
+    strategy: depend
+test_coreneuron:
+  stage: test
+  trigger:
+    project: hpc/coreneuron
+    branch: @TEST_BRANCH@
     strategy: depend
