@@ -12,6 +12,8 @@ variables:
   GIT_STRATEGY: none
   # Make ${CI_BUILDS_DIR} points to a top-level pipeline-global directory.
   bb5_build_dir: pipeline
+  # Make the top-level jobs launched by the GitLab CI use the same account
+  bb5_account: proj12
   # Shared input directory for HPC integration tests.
   DATADIR: /gpfs/bbp.cscs.ch/project/proj12/jenkins
 
@@ -26,10 +28,16 @@ variables:
     GIT_CLONE_PATH: ${CI_BUILDS_DIR}
     # What version of BlueBrain/spack to use. You can override this if need be.
     SPACK_BRANCH: develop
+    # This is a trivial setup job, it doesn't need many resources
+    bb5_memory: 512M
+    bb5_constraint: knl
+    bb5_cpus_per_task: 1
+    bb5_duration: "10:00"
   tags:
     - bb5
   script:
     - echo Using ${PWD} as a working directory common to the whole pipeline...
+    - echo Checking out the ${SPACK_BRANCH} of Spack...
     - git clone --depth 1 --single-branch --branch ${SPACK_BRANCH} https://github.com/BlueBrain/spack.git spack
     - cp /gpfs/bbp.cscs.ch/ssd/apps/hpc/jenkins/config/*.yaml spack/etc/spack
     - SPACK_ROOT=${PWD}/spack
@@ -82,20 +90,30 @@ variables:
     - mkdir ${SPACK_CONFIG}
     - echo -e "config:\n  build_stage:\n  - ${SPACK_BUILD}" > ${SPACK_CONFIG}/config.yaml
     - spack --config-scope ${SPACK_CONFIG} config blame config
+    - if [ "${SPACK_EXPORT_SPECS}" ]; then
+    - spack export --scope=user --module tcl --explicit ${SPACK_EXPORT_SPECS} > ${SPACK_CONFIG}/packages.yaml
+    - cat ${SPACK_CONFIG}/packages.yaml
+    - fi
     # Modify the Spack recipe so the develop version points at ${SPACK_PACKAGE_REF}
     - SPACK_PACKAGE_FILE="$(spack location -p ${SPACK_PACKAGE})/package.py"
     # Remove any commit/tag/branch identifier from the line containing the
     # develop version and substitute in our desired commit hash. Don't
     # change anything if ${SPACK_PACKAGE_REF} is unset or an empty string.
-    - if [ "${SPACK_PACKAGE_REF}" ]; then sed -i -e "/^\s*version\s*(\s*\(['\"]\)develop\1/ { s/,\s*\(commit\|tag\|branch\)=\([\"']\)[^\2]\+\2//g; s#)#, ${SPACK_PACKAGE_REF})#; }" "${SPACK_PACKAGE_FILE}"; fi
+    - if [ "${SPACK_PACKAGE_REF}" ]; then
+    # Note that [^\2] doesn't work, backreferences are not expanded there, so
+    # we have to use [^\"'].
+    - sed -i -e "/^\s*version\s*(\s*\(['\"]\)develop\1/ { s/,\s*\(commit\|tag\|branch\)=\([\"']\)[^\"']\+\2//g; s#)#, ${SPACK_PACKAGE_REF})#; }" "${SPACK_PACKAGE_FILE}"
+    - (cd $(dirname "${SPACK_PACKAGE_FILE}") && git diff "${SPACK_PACKAGE_FILE}")
+    - fi
     # Get the hash of the version we're about to install. First, construct the
     # full spec. This includes ${SPACK_PACKAGE_COMPILER} and ${SPACK_PACKAGE_DEPENDENCIES} if
     # they are not empty.
     - SPACK_FULL_SPEC=${SPACK_PACKAGE}@develop${SPACK_PACKAGE_COMPILER:+%}${SPACK_PACKAGE_COMPILER}${SPACK_PACKAGE_SPEC}${SPACK_PACKAGE_DEPENDENCIES:+^}${SPACK_PACKAGE_DEPENDENCIES}
+    - echo "Preparing to install ${SPACK_FULL_SPEC}"
     # Then extract the hash
-    - JSON_SPEC=$(spack spec --json ${SPACK_FULL_SPEC})
+    - JSON_SPEC=$(spack --config-scope ${SPACK_CONFIG} spec --json ${SPACK_FULL_SPEC})
     - SPACK_INSTALLED_HASH=$(echo "${JSON_SPEC}" | python -c "import json, sys; print(json.loads(sys.stdin.read())[\"spec\"][0][\"${SPACK_PACKAGE}\"][\"hash\"])")
-    - echo "Preparing to install ${SPACK_FULL_SPEC} (${SPACK_INSTALLED_HASH})"
+    - echo "Determined its hash will be ${SPACK_INSTALLED_HASH}"
     # Construct the directories Spack is going to use to build the package.
     # For a CMake project the source directory will be:
     #   ${SPACK_STAGE_DIR}/spack-src
@@ -146,11 +164,18 @@ variables:
     - echo "SPACK_FULL_SPEC=${SPACK_FULL_SPEC}" >> ${CI_PROJECT_DIR}/spack_build_dir.env
     - echo "SPACK_SOURCE_DIR=${SPACK_SOURCE_DIR}" >> ${CI_PROJECT_DIR}/spack_build_dir.env
     - echo "SPACK_PACKAGE_DEPENDENCIES=${SPACK_PACKAGE_DEPENDENCIES}" >> ${CI_PROJECT_DIR}/spack_build_dir.env
+    # Return a meaningful status code by inspecting install.xml. This only
+    # loads modules in a subshell so it doesn't pollute the environment. The
+    # snippet counts the number of <failure> tags in the XML.
+    - num_failures=$(module load unstable python-dev; python -c "from lxml import etree; xml = etree.parse('${CI_PROJECT_DIR}/install.xml'); print(sum(1 for x in xml.getroot().iter('failure')))")
+    - echo "Returning the number of failed builds, ${num_failures}"
+    - exit ${num_failures}
   needs: ["spack_setup"]
   artifacts:
     when: always
     paths:
       - install.xml
+      - spack_build_dir.env
       - initial_environment.env
       - spack-build-env.txt
       - spack-build-out.txt
@@ -180,12 +205,15 @@ variables:
     # The test job (in the GitLab sense) is 1 task with ${SLURM_CPUS_PER_TASK}
     # cores allocated to it; tell CTest to use those cores.
     - export CTEST_PARALLEL_LEVEL=${SLURM_CPUS_PER_TASK}
-    # This is a bit hacky; this will be set by the BB5 runner to the number of
-    # cores allocated to this CI job, but it is inherited as a default by
-    # child invocations of srun. This means that if a test does something like
-    # `srun -n 2 path/to/executable` then it fails, because this is interpreted
-    # as a request for 2*SLURM_CPUS_PER_TASK CPUs, which cannot be accomodated
-    # by construction.
+    # This is a bit hacky; the BB5 runner typically launches this script as a
+    # single task with many allocated cores, but the project test suits
+    # typically do things like `mpirun -n 2` to launch two tasks with one core
+    # each. To make this "standard use case" work we manipulate the environment
+    # so it looks like we were allocated resources for many single-core tasks.
+    - if [ ${SLURM_TASKS_PER_NODE} -ne 1 ]; then
+    - echo WARNING -- SLURM_TASKS_PER_NODE was ${SLURM_TASKS_PER_NODE}, this logic assumes it is 1
+    - fi
+    - export SLURM_TASKS_PER_NODE=${SLURM_CPUS_PER_TASK}
     - export SLURM_CPUS_PER_TASK=1
     # These PMI_* variables cause problems in CoreNEURON tests if they are not
     # unset, but @olupton has not fully understood the mechanism and if a
@@ -216,7 +244,7 @@ variables:
     - export BOOST_TEST_COLOR_OUTPUT=no
     # Make sure we return a helpful exit code.
     - i_am_a_failure=0
-    - spack build-env ${SPACK_FULL_SPEC} ctest -VV -T Test || i_am_a_failure=1
+    - spack build-env ${SPACK_FULL_SPEC} -- ctest -VV -T Test || i_am_a_failure=1
     # Save the Testing/ directory as job artifacts
     - cp -r Testing/ ${CI_PROJECT_DIR}/
     # Make an XML report file the GitLab UI can display

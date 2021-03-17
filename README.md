@@ -32,6 +32,11 @@ The following variables are used in the template:
   Will be used as `${SPACK_PACKAGE}@develop${SPACK_PACKAGE_SPEC}...`.
 * `SPACK_BRANCH` (optional, only for spack_setup): which branch of Spack to
   use.
+* `SPACK_EXPORT_SPECS` (optional, discouraged): a list of Spack specs that will
+  be added to a build-step-local `packages.yaml` as external packages. This can
+  be used to encourage Spack not to rebuild too much of the world, in
+  particular if you are trying to build with a nonstandard compiler or compiler
+  version. Passed to `spack export --scope=user --module tcl --explicit`.
 
 ## Basic Setup
 
@@ -146,3 +151,17 @@ include:
 With this configuration the GitLab CI will run every time an update is made to
 a pull request on GitHub. It will also run when changes are pushed to the
 default branch.
+
+# Limitations
+
+This section lists a few known limitations of the templates.
+- `SPACK_PACKAGE_DEPENDENCIES` is overriden by the output artifacts of build
+  steps. This means if you are building `library` and `application` (that
+  depends on `library`) in your pipeline then setting
+  `SPACK_PACKAGE_DEPENDENCIES` explicitly on `application` will have no effect;
+  it will be overwritten by some `/hash_of_library_installation` from `library`
+- All build jobs share one Spack installation, this means that if you have
+  multiple build jobs for the same package then they will all try and modify
+  the same recipe (`package.py`). This is probably OK unless the build steps
+  have different `SPACK_PACKAGE_REF` values; in that case you should use
+  `needs` relationships to avoid the builds running in parallel.
