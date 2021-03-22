@@ -91,7 +91,7 @@ variables:
     - echo -e "config:\n  build_stage:\n  - ${SPACK_BUILD}" > ${SPACK_CONFIG}/config.yaml
     - spack --config-scope ${SPACK_CONFIG} config blame config
     - if [ "${SPACK_EXPORT_SPECS}" ]; then
-    - spack export --scope=user --module tcl --explicit ${SPACK_EXPORT_SPECS} > ${SPACK_CONFIG}/packages.yaml
+    - spack export --scope=command_line --module tcl ${SPACK_EXPORT_SPECS} > ${SPACK_CONFIG}/packages.yaml
     - cat ${SPACK_CONFIG}/packages.yaml
     - fi
     # Modify the Spack recipe so the develop version points at ${SPACK_PACKAGE_REF}
