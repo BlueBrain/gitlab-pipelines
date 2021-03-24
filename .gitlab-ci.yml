@@ -8,7 +8,9 @@ variables:
   TEST_BRANCH: "ci-test/${CI_COMMIT_SHA}"
 
 default:
-  tags: [bb5]
+  # Use an account that maps will switch users depending on the repo it
+  # runs on
+  tags: [bb5_map]
 
 .prepare_project:
   stage: .pre

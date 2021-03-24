@@ -34,7 +34,9 @@ variables:
     bb5_cpus_per_task: 1
     bb5_duration: "10:00"
   tags:
-    - bb5
+    # Use an account that maps will switch users depending on the repo it
+    # runs on
+    - bb5_map
   script:
     - echo Using ${PWD} as a working directory common to the whole pipeline...
     - echo Checking out the ${SPACK_BRANCH} of Spack...
@@ -66,11 +68,13 @@ variables:
 .spack_build:
   stage: build
   tags:
-    - bb5
+    # Use an account that maps will switch users depending on the repo it
+    # runs on
+    - bb5_map
   variables:
     # Work in a directory unique to this job.
     GIT_CLONE_PATH: ${CI_BUILDS_DIR}/${CI_JOB_ID}
-    # By default we update the `develop` version of the Spack recipe to pointw
+    # By default we update the `develop` version of the Spack recipe to point
     # to this commit ("the commit the pipeline is being run on"). This variable
     # can be overriden, also with tag="..." or branch="...".
     SPACK_PACKAGE_REF: commit="${CI_COMMIT_SHA}"
@@ -94,6 +98,11 @@ variables:
     - spack export --scope=command_line --module tcl ${SPACK_EXPORT_SPECS} > ${SPACK_CONFIG}/packages.yaml
     - cat ${SPACK_CONFIG}/packages.yaml
     - fi
+    # Tell Git how to re-write BBP GitLab URLs to use a token instead of SSH
+    - export XDG_CONFIG_HOME=${PWD}/local_config
+    - mkdir -p "${XDG_CONFIG_HOME}/git"
+    - echo -e "[url \"https://gitlab-ci-token:${CI_JOB_TOKEN}@bbpgitlab.epfl.ch/\"]\n  insteadOf = git@bbpgitlab.epfl.ch:" > "${XDG_CONFIG_HOME}/git/config"
+    - cat "${XDG_CONFIG_HOME}/git/config"
     # Modify the Spack recipe so the develop version points at ${SPACK_PACKAGE_REF}
     - SPACK_PACKAGE_FILE="$(spack location -p ${SPACK_PACKAGE})/package.py"
     # Remove any commit/tag/branch identifier from the line containing the
@@ -192,7 +201,9 @@ variables:
 .spack_test:
   stage: test
   tags:
-    - bb5
+    # Use an account that maps will switch users depending on the repo it
+    # runs on
+    - bb5_map
   variables:
     # Just running tests, no need to check anything out
     GIT_STRATEGY: none
