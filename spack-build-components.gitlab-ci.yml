@@ -40,18 +40,58 @@ variables:
     bb5_constraint: knl
     bb5_cpus_per_task: 1
     bb5_duration: "10:00"
+  before_script:
+    # If we are triggered by a PR on GitHub, fetch the body of the PR description
+    - if [[ "${PARSE_GITHUB_PR_DESCRIPTIONS}" == "true" && "${CI_PIPELINE_SOURCE}" == "external_pull_request_event" ]]; then
+    # Write a small Python script that queries the GitHub API and prints out a
+    # series of variable declarations. See the README for documentation of the
+    # required content of the GitHub PR description. The expressions in the PR
+    # description are parsed into variables of the form:
+    #  SPACK_PACKAGE_REF_{package_name}={ref_type}="{ref}"
+    # where `ref_type` is one of `branch`, `tag` and `ref`, for example
+    #  SPACK_PACKAGE_REF_neuron=branch="some/feature_branch"
+    - |
+      cat > parse_description.py << END_SCRIPT
+      from __future__ import print_function
+      import os
+      import re
+      import requests
+      pr_info = requests.get("https://api.github.com/repos/{}/pulls/{}".format(
+                              os.environ['CI_EXTERNAL_PULL_REQUEST_TARGET_REPOSITORY'],
+                              os.environ['CI_EXTERNAL_PULL_REQUEST_IID']),
+                             headers={'Accept': 'application/vnd.github.v3+json'})
+      pr_body = pr_info.json()["body"]
+      # match something like NEURON_BRANCH=foo/bar
+      pat = re.compile('^([A-Z_]+)_([A-Z]+)=([A-Z\-\_\/]+)$', re.IGNORECASE)
+      def parse_term(m):
+        ref_type = m.group(2).lower()
+        if ref_type not in {'branch', 'tag', 'ref'}: return
+        print('SPACK_PACKAGE_REF_' + m.group(1).lower() + '=' + ref_type + '="' + m.group(3) + '"')
+      for pr_body_line in pr_body.splitlines():
+        if not pr_body_line.startswith('CI_BRANCHES:'): continue
+        for config_term in pr_body_line[12:].split(','):
+          pat.sub(parse_term, config_term)
+      END_SCRIPT
+    # GitLab's UI collapses the multi-line command above so this aids debugging
+    - cat parse_description.py
+    # Save the variables we parsed out of the GitHub PR body for later jobs.
+    - python parse_description.py > spack_clone_variables.env
+    - cat spack_clone_variables.env
+    # endif that we're triggered by a PR on GitHub
+    - fi
   script:
     - echo Using ${PWD} as a working directory common to the whole pipeline...
     - echo Checking out the ${SPACK_BRANCH} of Spack...
     - git clone --depth 1 --single-branch --branch ${SPACK_BRANCH} https://github.com/BlueBrain/spack.git spack
     - cp /gpfs/bbp.cscs.ch/ssd/apps/hpc/jenkins/config/*.yaml spack/etc/spack
     - SPACK_ROOT=${PWD}/spack
-    - echo "SPACK_ROOT=${SPACK_ROOT}" > spack_dirs.env
+    - echo "SPACK_ROOT=${SPACK_ROOT}" >> spack_clone_variables.env
     - . ${SPACK_ROOT}/share/spack/setup-env.sh
   artifacts:
     when: always
+    paths: [spack_clone_variables.env]
     reports:
-      dotenv: spack_dirs.env
+      dotenv: spack_clone_variables.env
 
 # Augmented version of .spack_setup that additionally enables ccache in the
 # Spack configuration and exports a variable SPACK_USE_CCACHE=true for use in
@@ -66,7 +106,7 @@ variables:
     - spack config get config
     # In principle later stages could use some kind of
     # `spack config get config | grep ccache` construction, but this is simpler
-    - echo "SPACK_USE_CCACHE=true" >> spack_dirs.env
+    - echo "SPACK_USE_CCACHE=true" >> spack_clone_variables.env
 
 .spack_build:
   stage: build
@@ -102,21 +142,28 @@ variables:
     - mkdir -p "${XDG_CONFIG_HOME}/git"
     - echo -e "[url \"https://gitlab-ci-token:${CI_JOB_TOKEN}@bbpgitlab.epfl.ch/\"]\n  insteadOf = git@bbpgitlab.epfl.ch:" > "${XDG_CONFIG_HOME}/git/config"
     - cat "${XDG_CONFIG_HOME}/git/config"
+    # Figure out what the develop version of this package should refer to. If
+    # this was steered by the PR description then the variable
+    # ${SPACK_PACKAGE_REF_${SPACK_PACKAGE}} should be set to a valid value and
+    # this should take precedence. Otherwise, use ${SPACK_PACKAGE_REF}.
+    - REF_OVERRIDE_NAME=SPACK_PACKAGE_REF_${SPACK_PACKAGE}
+    - PACKAGE_REF=${!REF_OVERRIDE_NAME:-$SPACK_PACKAGE_REF}
     # Modify the Spack recipe so the develop version points at ${SPACK_PACKAGE_REF}
     - SPACK_PACKAGE_FILE="$(spack location -p ${SPACK_PACKAGE})/package.py"
     # Remove any commit/tag/branch identifier from the line containing the
     # develop version and substitute in our desired commit hash. Don't
-    # change anything if ${SPACK_PACKAGE_REF} is unset or an empty string.
-    - if [ "${SPACK_PACKAGE_REF}" ]; then
+    # change anything if ${PACKAGE_REF} is unset or an empty string.
+    - if [ "${PACKAGE_REF}" ]; then
+    - echo New ref for ${SPACK_PACKAGE} is ${PACKAGE_REF}
     # Note that [^\2] doesn't work, backreferences are not expanded there, so
     # we have to use [^\"'].
-    - sed -i -e "/^\s*version\s*(\s*\(['\"]\)develop\1/ { s/,\s*\(commit\|tag\|branch\)=\([\"']\)[^\"']\+\2//g; s#)#, ${SPACK_PACKAGE_REF})#; }" "${SPACK_PACKAGE_FILE}"
+    - sed -i -e "/^\s*version\s*(\s*\(['\"]\)develop\1/ { s/,\s*\(commit\|tag\|branch\)=\([\"']\)[^\"']\+\2//g; s#)#, ${PACKAGE_REF})#; }" "${SPACK_PACKAGE_FILE}"
     - (cd $(dirname "${SPACK_PACKAGE_FILE}") && git diff "${SPACK_PACKAGE_FILE}")
     - fi
     # Get the hash of the version we're about to install. First, construct the
     # full spec. This includes ${SPACK_PACKAGE_COMPILER} and ${SPACK_PACKAGE_DEPENDENCIES} if
     # they are not empty.
-    - SPACK_FULL_SPEC=${SPACK_PACKAGE}@develop${SPACK_PACKAGE_COMPILER:+%}${SPACK_PACKAGE_COMPILER}${SPACK_PACKAGE_SPEC}${SPACK_PACKAGE_DEPENDENCIES:+^}${SPACK_PACKAGE_DEPENDENCIES}
+    - SPACK_FULL_SPEC=${SPACK_PACKAGE}@develop${SPACK_PACKAGE_COMPILER:+%}${SPACK_PACKAGE_COMPILER}${SPACK_PACKAGE_SPEC}${SPACK_PACKAGE_DEPENDENCIES}
     - echo "Preparing to install ${SPACK_FULL_SPEC}"
     # Then extract the hash
     - JSON_SPEC=$(spack --config-scope ${SPACK_CONFIG} spec --json ${SPACK_FULL_SPEC})
@@ -167,15 +214,15 @@ variables:
     # Copy some files to the original working directory that artifacts are
     # saved from.
     - cp ${SPACK_STAGE_DIR}/spack-{build-env,build-out,configure-args}.txt ${CI_PROJECT_DIR}/
-    # Append to a list /hash1/hash2/hash3/... of packages that have been
+    # Append to a list /hash1^/hash2^/hash3... of packages that have been
     # installed in this chain of .spack_build jobs.
-    - SPACK_PACKAGE_DEPENDENCIES=${SPACK_PACKAGE_DEPENDENCIES}/${SPACK_INSTALLED_HASH}
-    - echo "SPACK_ROOT=${SPACK_ROOT}" > ${CI_PROJECT_DIR}/spack_build_dir.env # so other jobs don't need to depend explicitly on spack_setup
-    - if [ ${SPACK_USE_CCACHE+x} ]; then echo "SPACK_USE_CCACHE=${SPACK_USE_CCACHE}" >> ${CI_PROJECT_DIR}/spack_build_dir.env; fi
-    - echo "SPACK_BUILD_DIR=${SPACK_BUILD_DIR}" >> ${CI_PROJECT_DIR}/spack_build_dir.env
-    - echo "SPACK_FULL_SPEC=${SPACK_FULL_SPEC}" >> ${CI_PROJECT_DIR}/spack_build_dir.env
-    - echo "SPACK_SOURCE_DIR=${SPACK_SOURCE_DIR}" >> ${CI_PROJECT_DIR}/spack_build_dir.env
-    - echo "SPACK_PACKAGE_DEPENDENCIES=${SPACK_PACKAGE_DEPENDENCIES}" >> ${CI_PROJECT_DIR}/spack_build_dir.env
+    - SPACK_PACKAGE_DEPENDENCIES=${SPACK_PACKAGE_DEPENDENCIES}^/${SPACK_INSTALLED_HASH}
+    # Overwrite the spack_build_info.env file, otherwise chains of dependent
+    # build jobs will duplicate these values.
+    - echo "SPACK_BUILD_DIR=${SPACK_BUILD_DIR}" > ${CI_PROJECT_DIR}/spack_build_info.env
+    - echo "SPACK_FULL_SPEC=${SPACK_FULL_SPEC}" >> ${CI_PROJECT_DIR}/spack_build_info.env
+    - echo "SPACK_SOURCE_DIR=${SPACK_SOURCE_DIR}" >> ${CI_PROJECT_DIR}/spack_build_info.env
+    - echo "SPACK_PACKAGE_DEPENDENCIES=${SPACK_PACKAGE_DEPENDENCIES}" >> ${CI_PROJECT_DIR}/spack_build_info.env
     # Return a meaningful status code by inspecting install.xml. This only
     # loads modules in a subshell so it doesn't pollute the environment. The
     # snippet counts the number of <failure> tags in the XML.
@@ -187,14 +234,17 @@ variables:
     when: always
     paths:
       - install.xml
-      - spack_build_dir.env
+      - spack_build_info.env
+      - spack_clone_variables.env
       - initial_environment.env
       - spack-build-env.txt
       - spack-build-out.txt
       - spack-configure-args.txt
     reports:
       junit: install.xml
-      dotenv: spack_build_dir.env
+      dotenv:
+        - spack_build_info.env
+        - spack_clone_variables.env
   cache:
     key: ${SPACK_PACKAGE}-${SPACK_PACKAGE_COMPILER}
     paths:

@@ -19,8 +19,7 @@ The following variables are used in the template:
 * `SPACK_PACKAGE_COMPILER` (optional): compiler for Spack to use. If this is
   set the leading `%` will be added automatically.
 * `SPACK_PACKAGE_DEPENDENCIES` (optional): additions to the dependencies part
-   of the Spack spec. If this is set the leading `^` will be added
-   automatically.
+   of the Spack spec. You should include the leading `^` if you set this.
 * `SPACK_PACKAGE_REF` (optional): which git commit/tag/branch to checkout when
   building the package. By default the git commit (`${CI_COMMIT_SHA}`) the
   pipeline is running on is used. If this is set to a non-empty string then any
@@ -137,6 +136,47 @@ Note that because in this example `build:neuron` and `test_coreneuron` have
 the same dependencies (`needs: ["build:coreneuron"]`) they will execute in
 parallel in the pipeline.
 
+## Configuring alternative branches using GitHub pull request keywords
+When using GitLab CI with an external GitHub repository, such as BBP's open
+source projects, it can be useful to build against specific versions of
+dependencies instead of just using the tip of the default branch. To enable
+this functionality one can set the `PARSE_GITHUB_PR_DESCRIPTIONS` variable to
+the string `"true"` in the environment of the Spack setup job. For example:
+```yaml
+spack_setup:
+  extends: .spack_setup_ccache
+  variables:
+    # Enable fetching GitHub PR descriptions and parsing them to find out what
+    # branches to build of other projects.
+    PARSE_GITHUB_PR_DESCRIPTIONS: "true"
+```
+In this case the `spack_setup` job will query the GitHub API to get information
+about the external GitHub pull request and parse its description. The supported
+syntax is:
+```
+CI_BRANCHES:PROJECT1_REFTYPE1=REF1,PROJECT2_REFTYPE2=REF2[,...]
+```
+at the start of a line in the pull request description. The project name(s)
+will be transformed to lower case and should match the package name(s) in
+Spack. The `REFTYPE` is case insensitive and may be one of `branch`, `commit`
+and `tag`. `REF` is case sensitive. For example:
+```
+CI_BRANCHES:NEURON_BRANCH=some/feature-branch
+```
+Note that these requests will only be honoured for packages that have explicit
+build steps in the pipeline. For example, in the above example with CoreNEURON
+and NEURON that runs in the CI for CoreNEURON then:
+- `CI_BRANCHES:NEURON_BRANCH=some/feature-branch` makes sense and should work
+- `CI_BRANCHES:CORENEURON_BRANCH=some/feature-branch` is nonsensical, you would
+  be running a CI pipeline attached to a particular ref in CoreNEURON that
+  builds and tests a different ref in CoreNEURON. That said, it will silently
+  build the specified branch and override the default `${CI_COMMIT_SHA}`.
+- `CI_BRANCHES:BISON_TAG=v3.0.6` will be silently ignored, CoreNEURON depends
+  on `bison` but there is no explicit build step for `bison`.
+
+This is a re-implementation of a similar feature in the previous CI setup that
+was based on Jenkins.
+
 # Other useful templates
 
 This repository also includes a template,
@@ -159,7 +199,7 @@ This section lists a few known limitations of the templates.
   steps. This means if you are building `library` and `application` (that
   depends on `library`) in your pipeline then setting
   `SPACK_PACKAGE_DEPENDENCIES` explicitly on `application` will have no effect;
-  it will be overwritten by some `/hash_of_library_installation` from `library`
+  it will be overwritten by some `^/hash_of_library_installation` from `library`
 - All build jobs share one Spack installation, this means that if you have
   multiple build jobs for the same package then they will all try and modify
   the same recipe (`package.py`). This is probably OK unless the build steps
