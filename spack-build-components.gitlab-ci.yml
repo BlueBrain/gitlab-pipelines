@@ -22,10 +22,11 @@ variables:
 .spack_setup:
   stage: .pre
   variables:
-    # The clone of spack can be right at the top level in the pipeline-global
-    # directory (without this the path to the project running the pipeline will
-    # be inserted into the directory structure).
-    GIT_CLONE_PATH: ${CI_BUILDS_DIR}
+    # Put the clone of spack at {pipeline_id}/{spack_setup_jobid}/spack, there
+    # is no need to include the path to the project running the pipeline (e.g.
+    # hpc/coreneuron). It makes sense to include the job ID because it means
+    # that the spack_setup job can be retried in case of a transient failure.
+    GIT_CLONE_PATH: ${CI_BUILDS_DIR}/${CI_JOB_ID}
     # What version of BlueBrain/spack to use. You can override this if need be.
     SPACK_BRANCH: develop
     # This is a trivial setup job, it doesn't need many resources
@@ -155,6 +156,10 @@ variables:
   script:
     # Spack needs a recent Git version.
     - module load unstable git
+    # *Un*install this spec first. This can be helpful when resubmitting failed
+    # jobs, for example if the GitLab job finalisation fails then the package
+    # might have been successfully installed to the pipeline's Spack tree.
+    - spack --config-scope ${SPACK_CONFIG} uninstall -y /${SPACK_INSTALLED_HASH} || true
     # Install that new version. Use an absolute path for install.xml so it ends
     # up in the original job working directory even if that's no longer the
     # working directory.

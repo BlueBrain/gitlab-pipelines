@@ -40,7 +40,6 @@ default:
 .coreneuron_config:
   variables:
     gitlab_project_token: ${CORENEURON_TOKEN}
-    # This might fail occasionally if GitHub happens to be synced in on top of our temporary branch...
     gitlab_project_to_prepare: hpc/coreneuron
 
 prepare_td:
