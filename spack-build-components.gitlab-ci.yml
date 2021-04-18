@@ -1,3 +1,9 @@
+default:
+  tags:
+    # Use an account that maps will switch users depending on the repo it
+    # runs on
+    - bb5_map
+
 variables:
   # Default values for Slurm
   SALLOC_ACCOUNT: proj12
@@ -34,10 +40,6 @@ variables:
     bb5_constraint: knl
     bb5_cpus_per_task: 1
     bb5_duration: "10:00"
-  tags:
-    # Use an account that maps will switch users depending on the repo it
-    # runs on
-    - bb5_map
   script:
     - echo Using ${PWD} as a working directory common to the whole pipeline...
     - echo Checking out the ${SPACK_BRANCH} of Spack...
@@ -68,10 +70,6 @@ variables:
 
 .spack_build:
   stage: build
-  tags:
-    # Use an account that maps will switch users depending on the repo it
-    # runs on
-    - bb5_map
   variables:
     # Work in a directory unique to this job.
     GIT_CLONE_PATH: ${CI_BUILDS_DIR}/${CI_JOB_ID}
@@ -205,10 +203,6 @@ variables:
 
 .spack_test:
   stage: test
-  tags:
-    # Use an account that maps will switch users depending on the repo it
-    # runs on
-    - bb5_map
   variables:
     # Just running tests, no need to check anything out
     GIT_STRATEGY: none
