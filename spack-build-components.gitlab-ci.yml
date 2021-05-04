@@ -163,7 +163,7 @@ variables:
     # Get the hash of the version we're about to install. First, construct the
     # full spec. This includes ${SPACK_PACKAGE_COMPILER} and ${SPACK_PACKAGE_DEPENDENCIES} if
     # they are not empty.
-    - SPACK_FULL_SPEC=${SPACK_PACKAGE}@develop${SPACK_PACKAGE_COMPILER:+%}${SPACK_PACKAGE_COMPILER}${SPACK_PACKAGE_SPEC}${SPACK_PACKAGE_DEPENDENCIES}
+    - SPACK_FULL_SPEC="${SPACK_PACKAGE}@develop${SPACK_PACKAGE_COMPILER:+%}${SPACK_PACKAGE_COMPILER}${SPACK_PACKAGE_SPEC}${SPACK_PACKAGE_DEPENDENCIES:+ }${SPACK_PACKAGE_DEPENDENCIES}"
     - echo "Preparing to install ${SPACK_FULL_SPEC}"
     # Then extract the hash
     - JSON_SPEC=$(spack --config-scope ${SPACK_CONFIG} spec --json ${SPACK_FULL_SPEC})
