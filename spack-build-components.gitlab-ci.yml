@@ -205,10 +205,13 @@ variables:
     # jobs, for example if the GitLab job finalisation fails then the package
     # might have been successfully installed to the pipeline's Spack tree.
     - spack --config-scope ${SPACK_CONFIG} uninstall -y /${SPACK_INSTALLED_HASH} || true
+    # Show what we're going to do, ignore the duplication with `spack spec`
+    # above for now
+    - spack --config-scope ${SPACK_CONFIG} spec -Il ${SPACK_FULL_SPEC}
     # Install that new version. Use an absolute path for install.xml so it ends
     # up in the original job working directory even if that's no longer the
     # working directory.
-    - spack --config-scope ${SPACK_CONFIG} install -j${SLURM_JOB_CPUS_PER_NODE} --log-format=junit --log-file=${CI_PROJECT_DIR}/install.xml --keep-stage ${SPACK_FULL_SPEC}
+    - spack ${SPACK_INSTALL_EXTRA_FLAGS} --config-scope ${SPACK_CONFIG} install -j${SLURM_JOB_CPUS_PER_NODE} --log-format=junit --log-file=${CI_PROJECT_DIR}/install.xml --keep-stage ${SPACK_FULL_SPEC}
     # Report ccache statistics if ccache was enabled.
     - if [ ${SPACK_USE_CCACHE+x} ]; then ccache -s; fi
     # Copy some files to the original working directory that artifacts are
