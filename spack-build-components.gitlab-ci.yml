@@ -41,6 +41,9 @@ variables:
     bb5_cpus_per_task: 1
     bb5_duration: "10:00"
   before_script:
+    # Make sure this file always exists, even if we are not doing any GitHub PR
+    # parsing magic.
+    - touch spack_clone_variables.env
     # If we are triggered by a PR on GitHub, fetch the body of the PR description
     - if [[ "${PARSE_GITHUB_PR_DESCRIPTIONS}" == "true" && "${CI_PIPELINE_SOURCE}" == "external_pull_request_event" ]]; then
     # Write a small Python script that queries the GitHub API and prints out a
@@ -81,6 +84,18 @@ variables:
     - fi
   script:
     - echo Using ${PWD} as a working directory common to the whole pipeline...
+    # Figure out what branch of Spack to checkout. If this was steered by the PR
+    # description then there will be an entry of the form:
+    #   SPACK_PACKGE_REF_spack=(tag|branch|commit)="..."
+    # in the file `spack_clone_variables.env`. For now, we only support the case
+    # that it is a branch specification. That's easier and should usually be
+    # sufficient. If a matching line is found, set ${SPACK_BRANCH_PARSED} to the
+    # branch name. Note that doing `. spack_clone_variables.env` to read the
+    # values into the environment is a bad idea, because Bash and GitLab have
+    # different ideas about how to handle the quotes.
+    - SPACK_BRANCH_PARSED=$(sed -n -e "s/^SPACK_PACKAGE_REF_spack=branch=\(['\"]\)\([^\1]\+\)\1/\2/p" spack_clone_variables.env)
+    # If ${SPACK_PACKAGE_REF_spack} is not set, use ${SPACK_BRANCH}.
+    - SPACK_BRANCH=${SPACK_BRANCH_PARSED:-$SPACK_BRANCH}
     - echo Checking out the ${SPACK_BRANCH} of Spack...
     - git clone --depth 1 --single-branch --branch ${SPACK_BRANCH} https://github.com/BlueBrain/spack.git spack
     - cp /gpfs/bbp.cscs.ch/ssd/apps/hpc/jenkins/config/*.yaml spack/etc/spack

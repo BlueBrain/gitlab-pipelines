@@ -178,6 +178,10 @@ and NEURON that runs in the CI for CoreNEURON then:
 - `CI_BRANCHES:BISON_TAG=v3.0.6` will be silently ignored, CoreNEURON depends
   on `bison` but there is no explicit build step for `bison`.
 
+The branch of Spack that is checked out can be specified using the same syntax,
+`CI_BRANCHES:SPACK_BRANCH=some/feature-branch`. In this case only branch
+specifications are supported, not tags or commits.
+
 This is a re-implementation of a similar feature in the previous CI setup that
 was based on Jenkins.
 
