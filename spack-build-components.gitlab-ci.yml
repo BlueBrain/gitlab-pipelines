@@ -3,6 +3,7 @@ default:
     # Use an account that maps will switch users depending on the repo it
     # runs on
     - bb5_map
+  interruptible: true
 
 variables:
   # Default values for Slurm
