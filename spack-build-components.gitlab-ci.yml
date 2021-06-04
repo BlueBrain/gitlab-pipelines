@@ -5,29 +5,31 @@ default:
     - bb5_map
   interruptible: true
 
-variables:
-  # Default values for Slurm
-  SALLOC_ACCOUNT: proj12
-  SBATCH_ACCOUNT: proj12
-  SLURM_ACCOUNT: proj12
-  SALLOC_PARTITION: prod
-  SBATCH_PARTITION: prod
-  SLURM_PARTITION: prod
-  # We never use the runner's native git checkout ability. We use `git clone`
-  # explicitly to get Spack, and then Spack itself clones any projects we want
-  # to build.
-  GIT_STRATEGY: none
-  # Make ${CI_BUILDS_DIR} points to a top-level pipeline-global directory.
-  bb5_build_dir: pipeline
-  # Make the top-level jobs launched by the GitLab CI use the same account
-  bb5_account: proj12
-  # Shared input directory for HPC integration tests.
-  DATADIR: /gpfs/bbp.cscs.ch/project/proj12/jenkins
+.gitlab_pipelines_variables:
+  variables:
+    # Default values for Slurm
+    SALLOC_ACCOUNT: proj12
+    SBATCH_ACCOUNT: proj12
+    SLURM_ACCOUNT: proj12
+    SALLOC_PARTITION: prod
+    SBATCH_PARTITION: prod
+    SLURM_PARTITION: prod
+    # We never use the runner's native git checkout ability. We use `git clone`
+    # explicitly to get Spack, and then Spack itself clones any projects we want
+    # to build.
+    GIT_STRATEGY: none
+    # Make ${CI_BUILDS_DIR} points to a top-level pipeline-global directory.
+    bb5_build_dir: pipeline
+    # Make the top-level jobs launched by the GitLab CI use the same account
+    bb5_account: proj12
+    # Shared input directory for HPC integration tests.
+    DATADIR: /gpfs/bbp.cscs.ch/project/proj12/jenkins
 
 # Set up a clone of Spack for use in this pipeline and export a variable called
 # SPACK_ROOT that points to it.
 .spack_setup:
   stage: .pre
+  extends: .gitlab_pipelines_variables
   variables:
     # Put the clone of spack at {pipeline_id}/{spack_setup_jobid}/spack, there
     # is no need to include the path to the project running the pipeline (e.g.
@@ -125,6 +127,7 @@ variables:
     - echo "SPACK_USE_CCACHE=true" >> spack_clone_variables.env
 
 .spack_build:
+  extends: .gitlab_pipelines_variables
   stage: build
   variables:
     # Work in a directory unique to this job.
@@ -271,6 +274,7 @@ variables:
     policy: pull-push
 
 .spack_test:
+  extends: .gitlab_pipelines_variables
   stage: test
   variables:
     # Just running tests, no need to check anything out
