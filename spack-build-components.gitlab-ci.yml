@@ -150,7 +150,13 @@ default:
     # if this first part could be done with `spack config add`...
     - SPACK_CONFIG=${PWD}/spack-config
     - mkdir ${SPACK_CONFIG}
-    - echo -e "config:\n  build_stage:\n  - ${SPACK_BUILD}" > ${SPACK_CONFIG}/config.yaml
+    - |
+      cat > ${SPACK_CONFIG}/config.yaml << END_SCRIPT
+      config:
+        build_stage:
+        - ${SPACK_BUILD}
+        source_cache: ${PWD}/spack-source-cache
+      END_SCRIPT
     - spack --config-scope ${SPACK_CONFIG} config blame config
     - if [ "${SPACK_EXPORT_SPECS}" ]; then
     - spack export --scope=command_line --module tcl ${SPACK_EXPORT_SPECS} > ${SPACK_CONFIG}/packages.yaml
