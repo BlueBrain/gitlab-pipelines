@@ -254,7 +254,7 @@ default:
     # Return a meaningful status code by inspecting install.xml. This only
     # loads modules in a subshell so it doesn't pollute the environment. The
     # snippet counts the number of <failure> tags in the XML.
-    - num_failures=$(module load unstable python-dev; python -c "from lxml import etree; xml = etree.parse('${CI_PROJECT_DIR}/install.xml'); print(sum(1 for x in xml.getroot().iter('failure')))")
+    - num_failures=$(module load unstable python-dev; python -c "from lxml import etree; xml = etree.parse('${CI_PROJECT_DIR}/install.xml'); print(sum(1 for _ in xml.getroot().iter('failure')) + sum(1 for _ in xml.getroot().iter('error')))")
     - echo "Returning the number of failed builds, ${num_failures}"
     - exit ${num_failures}
   needs: ["spack_setup"]
