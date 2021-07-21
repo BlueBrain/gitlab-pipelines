@@ -225,7 +225,10 @@ default:
     # end ccache-specific setup
   script:
     # Spack needs a recent Git version.
-    - module load unstable git
+    # The system GCC on BB5 is very old (4.8), and some recipes (coreneuron...)
+    # assume that `which gcc` will find a GCC version that can be used as a
+    # CUDA/NVCC host compiler.
+    - module load unstable git gcc
     # *Un*install this spec first. This can be helpful when resubmitting failed
     # jobs, for example if the GitLab job finalisation fails then the package
     # might have been successfully installed to the pipeline's Spack tree.
