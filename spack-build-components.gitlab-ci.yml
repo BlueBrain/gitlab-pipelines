@@ -322,7 +322,10 @@ default:
     - export BOOST_TEST_COLOR_OUTPUT=no
     # Make sure we return a helpful exit code.
     - i_am_a_failure=0
-    - spack build-env ${SPACK_FULL_SPEC} -- ctest -VV -T Test || i_am_a_failure=1
+    # --output-on-failure should stop the output from parallel jobs being
+    # interleaved. The full logfile including output from all jobs is uploaded
+    # as an artefact, so we shouldn't lose any information.
+    - spack build-env ${SPACK_FULL_SPEC} -- ctest --output-on-failure -T Test || i_am_a_failure=1
     # Save the Testing/ directory as job artifacts
     - cp -r Testing/ ${CI_PROJECT_DIR}/
     # Make an XML report file the GitLab UI can display
