@@ -253,6 +253,7 @@ default:
     - echo "SPACK_BUILD_DIR=${SPACK_BUILD_DIR}" > ${CI_PROJECT_DIR}/spack_build_info.env
     - echo "SPACK_FULL_SPEC=${SPACK_FULL_SPEC}" >> ${CI_PROJECT_DIR}/spack_build_info.env
     - echo "SPACK_SOURCE_DIR=${SPACK_SOURCE_DIR}" >> ${CI_PROJECT_DIR}/spack_build_info.env
+    - echo "SPACK_INSTALLED_HASH=${SPACK_INSTALLED_HASH}" >> ${CI_PROJECT_DIR}/spack_build_info.env
     - echo "SPACK_PACKAGE_DEPENDENCIES=${SPACK_PACKAGE_DEPENDENCIES}" >> ${CI_PROJECT_DIR}/spack_build_info.env
     # Return a meaningful status code by inspecting install.xml. This only
     # loads modules in a subshell so it doesn't pollute the environment. The
@@ -325,7 +326,7 @@ default:
     # --output-on-failure should stop the output from parallel jobs being
     # interleaved. The full logfile including output from all jobs is uploaded
     # as an artefact, so we shouldn't lose any information.
-    - spack build-env ${SPACK_FULL_SPEC} -- ctest --output-on-failure -T Test || i_am_a_failure=1
+    - spack build-env /${SPACK_INSTALLED_HASH} -- ctest --output-on-failure -T Test || i_am_a_failure=1
     # Save the Testing/ directory as job artifacts
     - cp -r Testing/ ${CI_PROJECT_DIR}/
     # Make an XML report file the GitLab UI can display
