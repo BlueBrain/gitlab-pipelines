@@ -243,7 +243,8 @@ default:
     # Report ccache statistics if ccache was enabled.
     - if [ ${SPACK_USE_CCACHE+x} ]; then ccache -s; fi
     # Copy some files to the original working directory that artifacts are
-    # saved from.
+    # saved from.  Make sure that optional files exist.
+    - touch ${SPACK_STAGE_DIR}/spack-configure-args.txt
     - cp ${SPACK_STAGE_DIR}/spack-{build-env,build-out,configure-args}.txt ${CI_PROJECT_DIR}/
     # Append to a list /hash1^/hash2^/hash3... of packages that have been
     # installed in this chain of .spack_build jobs.
