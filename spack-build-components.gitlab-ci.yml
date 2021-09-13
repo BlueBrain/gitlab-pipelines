@@ -38,6 +38,8 @@ default:
     GIT_CLONE_PATH: ${CI_BUILDS_DIR}/${CI_JOB_ID}
     # What version of BlueBrain/spack to use. You can override this if need be.
     SPACK_BRANCH: develop
+    # Which URL to use to check out spack
+    SPACK_URL: https://github.com/BlueBrain/spack.git
     # This is a trivial setup job, it doesn't need many resources
     bb5_memory: 512M
     bb5_cpus_per_task: 1
@@ -99,7 +101,7 @@ default:
     # If ${SPACK_PACKAGE_REF_spack} is not set, use ${SPACK_BRANCH}.
     - SPACK_BRANCH=${SPACK_BRANCH_PARSED:-$SPACK_BRANCH}
     - echo Checking out the ${SPACK_BRANCH} of Spack...
-    - git clone --depth 1 --single-branch --branch ${SPACK_BRANCH} https://github.com/BlueBrain/spack.git spack
+    - git clone --depth 1 --single-branch --branch ${SPACK_BRANCH} ${SPACK_URL} spack
     - cp /gpfs/bbp.cscs.ch/ssd/apps/hpc/jenkins/config/*.yaml spack/etc/spack
     - SPACK_ROOT=${PWD}/spack
     - echo "SPACK_ROOT=${SPACK_ROOT}" >> spack_clone_variables.env
