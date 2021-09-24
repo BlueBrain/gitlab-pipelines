@@ -74,10 +74,11 @@ default:
         ref_type = m.group(2).lower()
         if ref_type not in {'branch', 'tag', 'ref'}: return
         print('SPACK_PACKAGE_REF_' + m.group(1).lower() + '=' + ref_type + '="' + m.group(3) + '"')
-      for pr_body_line in pr_body.splitlines():
-        if not pr_body_line.startswith('CI_BRANCHES:'): continue
-        for config_term in pr_body_line[12:].split(','):
-          pat.sub(parse_term, config_term)
+      if pr_body is not None:
+        for pr_body_line in pr_body.splitlines():
+          if not pr_body_line.startswith('CI_BRANCHES:'): continue
+          for config_term in pr_body_line[12:].split(','):
+            pat.sub(parse_term, config_term)
       END_SCRIPT
     # GitLab's UI collapses the multi-line command above so this aids debugging
     - cat parse_description.py
