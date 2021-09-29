@@ -254,9 +254,14 @@ default:
     # saved from.  Make sure that optional files exist.
     - touch ${SPACK_STAGE_DIR}/spack-configure-args.txt
     - cp ${SPACK_STAGE_DIR}/spack-{build-env,build-out,configure-args}.txt ${CI_PROJECT_DIR}/
-    # Append to a list /hash1^/hash2^/hash3... of packages that have been
-    # installed in this chain of .spack_build jobs.
-    - SPACK_PACKAGE_DEPENDENCIES=${SPACK_PACKAGE_DEPENDENCIES}^/${SPACK_INSTALLED_HASH}
+    # NOTE changed behaviour. Before we would append ^/new_hash to the
+    # SPACK_PACKAGE_DEPENDENCIES variable. This produced a rather long spec for
+    # the later stages of a chain of build jobs, and also included any extra
+    # specs that were specified manually along the way, i.e. for A <- B <- C
+    #   ^dep_of_A+variant^/hash_of_A^dep_of_B%gcc^/hash_of_B
+    # Now we just include ^/hash_of_B in SPACK_PACKAGE_DEPENDENCIES after
+    # building B, and trust that that encodes all relevant constraints.
+    - SPACK_PACKAGE_DEPENDENCIES=^/${SPACK_INSTALLED_HASH}
     # Overwrite the spack_build_info.env file, otherwise chains of dependent
     # build jobs will duplicate these values.
     - echo "SPACK_BUILD_DIR=${SPACK_BUILD_DIR}" > ${CI_PROJECT_DIR}/spack_build_info.env
@@ -335,7 +340,7 @@ default:
     # --output-on-failure should stop the output from parallel jobs being
     # interleaved. The full logfile including output from all jobs is uploaded
     # as an artefact, so we shouldn't lose any information.
-    - spack build-env /${SPACK_INSTALLED_HASH} -- ctest --output-on-failure -T Test || i_am_a_failure=1
+    - spack build-env ${SPACK_FULL_SPEC} -- ctest --output-on-failure -T Test || i_am_a_failure=1
     # Save the Testing/ directory as job artifacts
     - cp -r Testing/ ${CI_PROJECT_DIR}/
     # Make an XML report file the GitLab UI can display
