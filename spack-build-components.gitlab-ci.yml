@@ -222,7 +222,7 @@ default:
     - mkdir -p ${CCACHE_BASEDIR} # ${CCACHE_DEBUGDIR}
     # Zero the statistics.
     - ccache -z
-    - ccache -s
+    - ccache -sv
     - fi
     # end ccache-specific setup
   script:
@@ -236,7 +236,7 @@ default:
     # might have been successfully installed to the pipeline's Spack tree. Also
     # include `--dependents` so that if we are installing `lib` and then `app`
     # that depends on it then re-trying to build `lib` after `app` has been
-    # installed will install both `lib` and `app` instead of neither.
+    # installed will uninstall both `lib` and `app` instead of neither.
     - spack --config-scope ${SPACK_CONFIG} uninstall -y --dependents /${SPACK_INSTALLED_HASH} || true
     # Show what we're going to do, ignore the duplication with `spack spec`
     # above for now
@@ -246,7 +246,7 @@ default:
     # working directory.
     - spack ${SPACK_INSTALL_EXTRA_FLAGS} --config-scope ${SPACK_CONFIG} install -j${SLURM_JOB_CPUS_PER_NODE} --log-format=junit --log-file=${CI_PROJECT_DIR}/install.xml --keep-stage ${SPACK_FULL_SPEC}
     # Report ccache statistics if ccache was enabled.
-    - if [ ${SPACK_USE_CCACHE+x} ]; then ccache -s; fi
+    - if [ ${SPACK_USE_CCACHE+x} ]; then ccache -sv; fi
     # Copy some files to the original working directory that artifacts are
     # saved from.  Make sure that optional files exist.
     - touch ${SPACK_STAGE_DIR}/spack-configure-args.txt
