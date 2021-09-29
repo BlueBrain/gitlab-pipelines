@@ -233,8 +233,11 @@ default:
     - module load unstable git gcc
     # *Un*install this spec first. This can be helpful when resubmitting failed
     # jobs, for example if the GitLab job finalisation fails then the package
-    # might have been successfully installed to the pipeline's Spack tree.
-    - spack --config-scope ${SPACK_CONFIG} uninstall -y /${SPACK_INSTALLED_HASH} || true
+    # might have been successfully installed to the pipeline's Spack tree. Also
+    # include `--dependents` so that if we are installing `lib` and then `app`
+    # that depends on it then re-trying to build `lib` after `app` has been
+    # installed will install both `lib` and `app` instead of neither.
+    - spack --config-scope ${SPACK_CONFIG} uninstall -y --dependents /${SPACK_INSTALLED_HASH} || true
     # Show what we're going to do, ignore the duplication with `spack spec`
     # above for now
     - spack --config-scope ${SPACK_CONFIG} spec -Il ${SPACK_FULL_SPEC}
