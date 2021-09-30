@@ -214,6 +214,9 @@ default:
     # the cache with pipeline- and job-specific paths.
     - export CCACHE_BASEDIR=${SPACK_STAGE_DIR}
     - export CCACHE_DIR=${CI_PROJECT_DIR}/ccache
+    # Default is 5G. There is no automatic cleaning of the caches on the GitLab
+    # side, so this is a good way of stopping things from growing too much.
+    - export CCACHE_MAXSIZE=512M
     # For debugging cache misses.
     # - export CCACHE_DEBUG=true
     # - export CCACHE_DEBUGDIR=${CI_PROJECT_DIR}/ccache_debug/
