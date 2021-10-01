@@ -224,8 +224,8 @@ default:
     # directories if needed.
     - mkdir -p ${CCACHE_BASEDIR} # ${CCACHE_DEBUGDIR}
     # Zero the statistics.
-    - ccache -z
-    - ccache -sv
+    - ccache --zero-stats
+    - ccache --show-stats --verbose
     - fi
     # end ccache-specific setup
   script:
@@ -249,7 +249,10 @@ default:
     # working directory.
     - spack ${SPACK_INSTALL_EXTRA_FLAGS} --config-scope ${SPACK_CONFIG} install -j${SLURM_JOB_CPUS_PER_NODE} --log-format=junit --log-file=${CI_PROJECT_DIR}/install.xml --keep-stage ${SPACK_FULL_SPEC}
     # Report ccache statistics if ccache was enabled.
-    - if [ ${SPACK_USE_CCACHE+x} ]; then ccache -sv; fi
+    - if [ ${SPACK_USE_CCACHE+x} ]; then
+    - ccache --cleanup
+    - ccache --show-stats --verbose
+    - fi
     # Copy some files to the original working directory that artifacts are
     # saved from.  Make sure that optional files exist.
     - touch ${SPACK_STAGE_DIR}/spack-configure-args.txt
