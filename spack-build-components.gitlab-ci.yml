@@ -18,8 +18,8 @@ default:
     # explicitly to get Spack, and then Spack itself clones any projects we want
     # to build.
     GIT_STRATEGY: none
-    # Make ${CI_BUILDS_DIR} points to a top-level pipeline-global directory.
-    bb5_build_dir: pipeline
+    # ${CI_BUILDS_DIR} will point to some {...}/{pipelineid}/{jobid} directory.
+    bb5_build_dir: pipeline_job
     # Make the top-level jobs launched by the GitLab CI use the same account
     bb5_account: proj12
     # Shared input directory for HPC integration tests.
@@ -31,11 +31,6 @@ default:
   stage: .pre
   extends: .gitlab_pipelines_variables
   variables:
-    # Put the clone of spack at {pipeline_id}/{spack_setup_jobid}/spack, there
-    # is no need to include the path to the project running the pipeline (e.g.
-    # hpc/coreneuron). It makes sense to include the job ID because it means
-    # that the spack_setup job can be retried in case of a transient failure.
-    GIT_CLONE_PATH: ${CI_BUILDS_DIR}/${CI_JOB_ID}
     # What version of BlueBrain/spack to use. You can override this if need be.
     SPACK_BRANCH: develop
     # Which URL to use to check out spack
@@ -132,8 +127,6 @@ default:
   extends: .gitlab_pipelines_variables
   stage: build
   variables:
-    # Work in a directory unique to this job.
-    GIT_CLONE_PATH: ${CI_BUILDS_DIR}/${CI_JOB_ID}
     # By default we update the `develop` version of the Spack recipe to point
     # to this commit ("the commit the pipeline is being run on"). This variable
     # can be overriden, also with tag="..." or branch="...".
@@ -306,13 +299,10 @@ default:
   variables:
     # Just running tests, no need to check anything out
     GIT_STRATEGY: none
-    # Make CI_BUILDS_DIR be the top-level pipeline-global directory
-    bb5_build_dir: pipeline
     # Run tests with many 1-core tasks instead of 1 many-core task, as this
     # means that naive `mpirun -n ...` should work.
     bb5_ntasks: 8
     bb5_cpus_per_task: 1
-    GIT_CLONE_PATH: ${CI_BUILDS_DIR}/${CI_JOB_ID}
   before_script:
     # Dump the environment for debugging purposes
     - env -0 | sort -z | xargs -0 -L 1 echo > initial_environment.env
