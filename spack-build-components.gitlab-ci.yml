@@ -8,6 +8,7 @@ default:
 .gitlab_pipelines_variables:
   variables:
     # Default values for Slurm
+    SLURM_OVERLAP: 1
     SALLOC_ACCOUNT: proj12
     SBATCH_ACCOUNT: proj12
     SLURM_ACCOUNT: proj12
@@ -242,7 +243,7 @@ default:
     # Install that new version. Use an absolute path for install.xml so it ends
     # up in the original job working directory even if that's no longer the
     # working directory.
-    - spack ${SPACK_INSTALL_EXTRA_FLAGS} --config-scope ${SPACK_CONFIG} install -j${SLURM_JOB_CPUS_PER_NODE} --log-format=junit --log-file=${CI_PROJECT_DIR}/install.xml --keep-stage ${SPACK_FULL_SPEC}
+    - spack ${SPACK_INSTALL_EXTRA_FLAGS} --config-scope ${SPACK_CONFIG} install -j${SLURM_CPUS_PER_TASK} --log-format=junit --log-file=${CI_PROJECT_DIR}/install.xml --keep-stage ${SPACK_FULL_SPEC}
     # Report ccache statistics if ccache was enabled.
     - if [ ${SPACK_USE_CCACHE+x} ]; then
     - ccache --cleanup

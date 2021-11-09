@@ -35,7 +35,7 @@ default:
   variables:
     gitlab_ci_yaml: .gitlab-ci.hpc.yml
     gitlab_project_token: ${TD_TOKEN}
-    gitlab_project_to_prepare: hpc/touchdetector
+    gitlab_project_to_prepare: hpc/circuit-building/touchdetector
 
 .coreneuron_config:
   variables:
