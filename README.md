@@ -38,8 +38,8 @@ The following variables are used in the template:
   version. Passed to `spack export --scope=user --module tcl --explicit`.
 * `SPACK_INSTALL_EXTRA_FLAGS` (optional, debug): these arguments are passed to
   the install command as `spack ${SPACK_INSTALL_EXTRA_FLAGS} install ...`. It
-  may be useful to set this to `--debug`, `-ddd` etc. when manually launching a
-  problematic pipeline.
+  may be useful to set this to `--debug`, `-ddd` etc. when manually launching a problematic pipeline.
+* `SPACK_EXTRA_MODULES`: list of modules to load before building with Spack.
 
 ## Basic Setup
 
