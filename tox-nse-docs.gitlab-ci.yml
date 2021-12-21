@@ -1,0 +1,30 @@
+# This is a shim to reuse NSE's CI plan optimally in HPC projects
+#
+# Please also see the notes in tox-nse.gitlab-ci.yml
+#
+# Projects using this template should include tox environments 'docs' and
+# 'publish_docs', with the documentation build output in 'doc/build'.
+include:
+  - project: nse/ci
+    file:
+      - /ci/jobs/docs.yml
+  - local: tox-nse.gitlab-ci.yml
+
+docs:
+  # For completeness, docs may have to invoke a full build (packages with a
+  # C++ component), so refer to the "standard" build commands
+  variables:
+    SYS_PACKAGES: !reference [.tox-template, variables, SYS_PACKAGES]
+    PRE_BUILD_COMMAND: !reference [.tox-template, variables, PRE_BUILD_COMMAND]
+
+publish-docs:
+  # Contrary to NSE's do_release.py (requires specific format of setup.py),
+  # we should integrate documentation uploading into tox to avoid special
+  # virtual environments et al when manually reproducing this.
+  extends: .tox-template
+  needs:
+    - docs
+  variables:
+    TOXENV: publish_docs
+  rules:
+    - if: $CI_COMMIT_TAG

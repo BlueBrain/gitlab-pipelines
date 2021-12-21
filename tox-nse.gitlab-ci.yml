@@ -1,0 +1,45 @@
+# This is a shim to reuse NSE's CI plan optimally in HPC projects
+#
+# This workflow is based around a working tox configuration. Requirements
+# can be handled e.g., like this:
+#
+# .tox-template:
+#   variables:
+#     SYS_PACKAGES: cmake git hdf5-devel java-11-openjdk ninja-build
+#     PRE_BUILD_COMMAND:
+#       sh .ci/install_morphokit.sh
+#       &&
+#       export CMAKE_PREFIX_PATH="$(<morphokit_location.txt):${CMAKE_PREFIX_PATH:+:}${CMAKE_PREFIX_PATH}"
+
+include:
+  - project: nse/ci
+    file:
+      - /ci/lib/tox-docker.yml
+      - /ci/jobs/py38.yml
+      - /ci/jobs/build-package.yml
+      - /ci/jobs/build-wheels.yml
+      - /ci/jobs/publish-package.yml
+
+workflow:
+  # Can't use the rules to constrain here if this pipeline is invoked in a
+  # parent-child context :(
+  rules:
+    - when: always
+
+build-package:
+  rules:
+    - when: always
+
+build-wheels:
+  parallel:
+    matrix:
+      - PY_VERSION: [py38, py39, py310]
+  variables:
+    SYS_PACKAGES: !reference [.tox-template, variables, SYS_PACKAGES]
+    PRE_BUILD_COMMAND: !reference [.tox-template, variables, PRE_BUILD_COMMAND]
+  rules:
+    - when: always
+
+publish-package:
+  rules:
+    - if: $CI_COMMIT_TAG
