@@ -19,10 +19,10 @@ default:
     # explicitly to get Spack, and then Spack itself clones any projects we want
     # to build.
     GIT_STRATEGY: none
-    # ${CI_BUILDS_DIR} will point to some {...}/{pipelineid}/{jobid} directory.
-    bb5_build_dir: pipeline_job
+    # ${CI_BUILDS_DIR} will point to some {...}/{pipelineid} directory.
+    bb5_build_dir: pipeline
     # Do not put the name of the repository in the working directory
-    GIT_CLONE_PATH: ${CI_BUILDS_DIR}/_
+    GIT_CLONE_PATH: ${CI_BUILDS_DIR}/J${CI_JOB_ID}
     # Make the top-level jobs launched by the GitLab CI use the same account
     bb5_account: proj12
     # Shared input directory for HPC integration tests.
@@ -86,7 +86,7 @@ default:
     # endif that we're triggered by a PR on GitHub
     - fi
   script:
-    - echo Using ${PWD} as a working directory common to the whole pipeline...
+    - echo Preparing to clone Spack into ${PWD}
     # Figure out what branch of Spack to checkout. If this was steered by the PR
     # description then there will be an entry of the form:
     #   SPACK_PACKGE_REF_spack=(tag|branch|commit)="..."
@@ -105,6 +105,7 @@ default:
     - SPACK_ROOT=${PWD}/spack
     - echo "SPACK_ROOT=${SPACK_ROOT}" >> spack_clone_variables.env
     - . ${SPACK_ROOT}/share/spack/setup-env.sh
+    - spack config --scope site add "config:install_tree:root:${CI_BUILDS_DIR}/sw"
   artifacts:
     when: always
     paths: [spack_clone_variables.env]
@@ -208,8 +209,8 @@ default:
     - module load unstable ccache
     # Tell ccache to use paths relative to this directory, to avoid polluting
     # the cache with pipeline- and job-specific paths.
-    - export CCACHE_BASEDIR=${SPACK_STAGE_DIR}
-    - export CCACHE_DIR=${CI_PROJECT_DIR}/ccache
+    - export CCACHE_BASEDIR=$(realpath -P ${CI_BUILDS_DIR})
+    - echo CCACHE_BASEDIR=${CCACHE_BASEDIR}
     # Default is 5G. There is no automatic cleaning of the caches on the GitLab
     # side, so this is a good way of stopping things from growing too much.
     - export CCACHE_MAXSIZE=512M
@@ -218,7 +219,12 @@ default:
     # - export CCACHE_DEBUGDIR=${CI_PROJECT_DIR}/ccache_debug/
     # We can't assume there was a valid GitLab cache, so create empty
     # directories if needed.
-    - mkdir -p ${CCACHE_BASEDIR} # ${CCACHE_DEBUGDIR}
+    - export CCACHE_DIR="${TMPDIR}/ccache"
+    - mkdir -p ${CCACHE_DIR}
+    - if [ -f ${CI_PROJECT_DIR}/ccache.tar ]; then
+    # There was a valid cache from GitLab
+    - tar -C "${CCACHE_DIR}" -xf "${CI_PROJECT_DIR}/ccache.tar"
+    - fi
     # Zero the statistics.
     - ccache --zero-stats
     - ccache --show-stats --verbose
@@ -242,10 +248,14 @@ default:
     # up in the original job working directory even if that's no longer the
     # working directory.
     - spack ${SPACK_INSTALL_EXTRA_FLAGS} --config-scope ${SPACK_CONFIG} install -j${SLURM_CPUS_PER_TASK} --log-format=junit --log-file=${CI_PROJECT_DIR}/install.xml --keep-stage ${SPACK_FULL_SPEC}
-    # Report ccache statistics if ccache was enabled.
+    # Try and improve debuggability, Spack likes making things only-owner-readable.
+    - chmod -R g+rX "${SPACK_BUILD}"
     - if [ ${SPACK_USE_CCACHE+x} ]; then
+    # Report ccache statistics if ccache was enabled.
     - ccache --cleanup
     - ccache --show-stats --verbose
+    # Create the cache archive for GitLab to handle. Intentionally do not compress (again) here.
+    - tar -C "${CCACHE_DIR}" -cf "${CI_PROJECT_DIR}/ccache.tar" .
     - fi
     # Copy some files to the original working directory that artifacts are
     # saved from.  Make sure that optional files exist.
@@ -289,9 +299,8 @@ default:
         - spack_build_info.env
         - spack_clone_variables.env
   cache:
-    key: ${SPACK_PACKAGE}-${SPACK_PACKAGE_COMPILER}
-    paths:
-      - ccache/
+    key: ${CI_JOB_NAME}
+    paths: [ccache.tar]
     policy: pull-push
 
 .spack_test:
