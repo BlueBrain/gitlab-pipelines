@@ -38,14 +38,14 @@ default:
     SPACK_BRANCH: develop
     # Which URL to use to check out spack
     SPACK_URL: https://github.com/BlueBrain/spack.git
-    # This is a trivial setup job, it doesn't need many resources
-    bb5_memory: 512M
-    bb5_cpus_per_task: 1
-    bb5_duration: "10:00"
   before_script:
     # Make sure this file always exists, even if we are not doing any GitHub PR
     # parsing magic.
     - touch spack_clone_variables.env
+    # Prefer the 2022 deployment modules.
+    - unset MODULEPATH
+    - . /gpfs/bbp.cscs.ch/ssd/apps/bsd/${SPACK_DEPLOYMENT_SUFFIX}/config/modules.sh
+    - echo "MODULEPATH=${MODULEPATH}" >> spack_clone_variables.env
     # If we are triggered by a PR on GitHub, fetch the body of the PR description
     - if [[ "${PARSE_GITHUB_PR_DESCRIPTIONS}" == "true" && "${CI_PIPELINE_SOURCE}" == "external_pull_request_event" ]]; then
     # Write a small Python script that queries the GitHub API and prints out a
@@ -81,7 +81,7 @@ default:
     # GitLab's UI collapses the multi-line command above so this aids debugging
     - cat parse_description.py
     # Save the variables we parsed out of the GitHub PR body for later jobs.
-    - python parse_description.py > spack_clone_variables.env
+    - (module load unstable python-dev; python parse_description.py) >> spack_clone_variables.env
     - cat spack_clone_variables.env
     # endif that we're triggered by a PR on GitHub
     - fi
@@ -101,11 +101,16 @@ default:
     - SPACK_BRANCH=${SPACK_BRANCH_PARSED:-$SPACK_BRANCH}
     - echo Checking out the ${SPACK_BRANCH} of Spack...
     - git clone --depth 1 --single-branch --branch ${SPACK_BRANCH} ${SPACK_URL} spack
-    - cp /gpfs/bbp.cscs.ch/ssd/apps/hpc/jenkins/config/*.yaml spack/etc/spack
     - SPACK_ROOT=${PWD}/spack
+    - rm -f ${SPACK_ROOT}/etc/spack/*.yaml
+    - cp ${SPACK_ROOT}/bluebrain/sysconfig/bluebrain5/*.yaml ${SPACK_ROOT}/etc/spack
     - echo "SPACK_ROOT=${SPACK_ROOT}" >> spack_clone_variables.env
+    - echo "SPACK_SYSTEM_CONFIG_PATH=/gpfs/bbp.cscs.ch/ssd/apps/bsd/${SPACK_DEPLOYMENT_SUFFIX}/config" >> spack_clone_variables.env
+    - echo "SPACK_USER_CACHE_PATH=${CI_BUILDS_DIR}" >> spack_clone_variables.env
+    - export $(cat spack_clone_variables.env | xargs)
     - . ${SPACK_ROOT}/share/spack/setup-env.sh
-    - spack config --scope site add "config:install_tree:root:${CI_BUILDS_DIR}/sw"
+    # Trigger bootstrapping and so on, check everything looks OK
+    - spack spec -IL ninja
   artifacts:
     when: always
     paths: [spack_clone_variables.env]
@@ -121,8 +126,6 @@ default:
     - !reference [.spack_setup, script]
     # Enable ccache
     - spack config --scope site add "config:ccache:true"
-    # Dump the configuration for debugging/reference purposes.
-    - spack config get config
     # In principle later stages could use some kind of
     # `spack config get config | grep ccache` construction, but this is simpler
     - echo "SPACK_USE_CCACHE=true" >> spack_clone_variables.env
@@ -147,19 +150,19 @@ default:
     - . ${SPACK_ROOT}/share/spack/setup-env.sh
     # Tell Spack which working directory to use in this job. It would be nice
     # if this first part could be done with `spack config add`...
-    - SPACK_CONFIG=${PWD}/spack-config
-    - mkdir ${SPACK_CONFIG}
+    - export SPACK_USER_CONFIG_PATH=${PWD}/spack-config
+    - mkdir ${SPACK_USER_CONFIG_PATH}
     - |
-      cat > ${SPACK_CONFIG}/config.yaml << END_SCRIPT
+      cat > ${SPACK_USER_CONFIG_PATH}/config.yaml << END_SCRIPT
       config:
-        build_stage:
+        build_stage::
         - ${SPACK_BUILD}
         source_cache: ${PWD}/spack-source-cache
       END_SCRIPT
-    - spack --config-scope ${SPACK_CONFIG} config blame config
+    - spack config blame config
     - if [ "${SPACK_EXPORT_SPECS}" ]; then
-    - spack export --scope=command_line --module tcl ${SPACK_EXPORT_SPECS} > ${SPACK_CONFIG}/packages.yaml
-    - cat ${SPACK_CONFIG}/packages.yaml
+    - spack export --scope=command_line --module tcl ${SPACK_EXPORT_SPECS} > ${SPACK_USER_CONFIG_PATH}/packages.yaml
+    - cat ${SPACK_USER_CONFIG_PATH}/packages.yaml
     - fi
     # Tell Git how to re-write BBP GitLab URLs to use a token instead of SSH
     - export XDG_CONFIG_HOME=${PWD}/local_config
@@ -190,8 +193,8 @@ default:
     - SPACK_FULL_SPEC="${SPACK_PACKAGE}@develop${SPACK_PACKAGE_COMPILER:+%}${SPACK_PACKAGE_COMPILER}${SPACK_PACKAGE_SPEC}${SPACK_PACKAGE_DEPENDENCIES:+ }${SPACK_PACKAGE_DEPENDENCIES}"
     - echo "Preparing to install ${SPACK_FULL_SPEC}"
     # Then extract the hash
-    - JSON_SPEC=$(spack --config-scope ${SPACK_CONFIG} spec --json ${SPACK_FULL_SPEC})
-    - SPACK_INSTALLED_HASH=$(echo "${JSON_SPEC}" | python -c "import json, sys; print(json.loads(sys.stdin.read())[\"spec\"][0][\"${SPACK_PACKAGE}\"][\"hash\"])")
+    - JSON_SPEC=$(spack spec --json ${SPACK_FULL_SPEC})
+    - SPACK_INSTALLED_HASH=$(module load unstable python; echo "${JSON_SPEC}" | python -c "import json, sys; print(json.loads(sys.stdin.read())[\"spec\"][\"nodes\"][0][\"hash\"])")
     - echo "Determined its hash will be ${SPACK_INSTALLED_HASH}"
     # Construct the directories Spack is going to use to build the package.
     # For a CMake project the source directory will be:
@@ -240,16 +243,18 @@ default:
     # include `--dependents` so that if we are installing `lib` and then `app`
     # that depends on it then re-trying to build `lib` after `app` has been
     # installed will uninstall both `lib` and `app` instead of neither.
-    - spack --config-scope ${SPACK_CONFIG} uninstall -y --dependents /${SPACK_INSTALLED_HASH} || true
+    - spack uninstall -y --dependents /${SPACK_INSTALLED_HASH} || true
     # Show what we're going to do, ignore the duplication with `spack spec`
     # above for now
-    - spack --config-scope ${SPACK_CONFIG} spec -Il ${SPACK_FULL_SPEC}
+    - spack spec -Il ${SPACK_FULL_SPEC}
     # Install that new version. Use an absolute path for install.xml so it ends
     # up in the original job working directory even if that's no longer the
     # working directory.
-    - spack ${SPACK_INSTALL_EXTRA_FLAGS} --config-scope ${SPACK_CONFIG} install -j${SLURM_CPUS_PER_TASK} --log-format=junit --log-file=${CI_PROJECT_DIR}/install.xml --keep-stage ${SPACK_FULL_SPEC}
+    - spack ${SPACK_INSTALL_EXTRA_FLAGS} install -j${SLURM_CPUS_PER_TASK} --log-format=junit --log-file=${CI_PROJECT_DIR}/install.xml --keep-stage ${SPACK_FULL_SPEC} || install_failed=1
     # Try and improve debuggability, Spack likes making things only-owner-readable.
     - chmod -R g+rX "${SPACK_BUILD}"
+    # Exit if we failed just above.
+    - if [[ ${install_failed} == 1 ]]; then exit 1; fi
     - if [ ${SPACK_USE_CCACHE+x} ]; then
     # Report ccache statistics if ccache was enabled.
     - ccache --cleanup

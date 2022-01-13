@@ -38,8 +38,15 @@ The following variables are used in the template:
   version. Passed to `spack export --scope=user --module tcl --explicit`.
 * `SPACK_INSTALL_EXTRA_FLAGS` (optional, debug): these arguments are passed to
   the install command as `spack ${SPACK_INSTALL_EXTRA_FLAGS} install ...`. It
-  may be useful to set this to `--debug`, `-ddd` etc. when manually launching a problematic pipeline.
-* `SPACK_EXTRA_MODULES`: list of modules to load before building with Spack.
+  may be useful to set this to `--debug`, `-ddd` etc. when manually launching a
+  problematic pipeline.
+* `SPACK_EXTRA_MODULES` (optional): list of modules to load before building
+  with Spack.
+* `SPACK_DEPLOYMENT_SUFFIX` (optional): extra component added to the GPFS path
+  of the software deployment on BB5. For example, `pulls/1418` would use the
+  deployed software built in the CI of PR 1418 to BlueBrain/spack. Make sure
+  that you think about what you are doing if you set this and `SPACK_BRANCH`
+  inconsistently.
 
 ## Basic Setup
 
@@ -121,7 +128,6 @@ test:coreneuron:
 and build another package that depends on the first one:
 ```yaml
 build:neuron:
-  stage: build_neuron # we extended the standard .pre/build/test/.post
   variables:
     SPACK_PACKAGE: neuron
     SPACK_PACKAGE_SPEC: +coreneuron
