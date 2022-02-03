@@ -39,22 +39,19 @@ default:
     # Which URL to use to check out spack
     SPACK_URL: https://github.com/BlueBrain/spack.git
   before_script:
-    # Make sure this file always exists, even if we are not doing any GitHub PR
-    # parsing magic.
-    - touch spack_clone_variables.env
     # Prefer the 2022 deployment modules.
     - unset MODULEPATH
     - . /gpfs/bbp.cscs.ch/ssd/apps/bsd/${SPACK_DEPLOYMENT_SUFFIX}/config/modules.sh
-    - echo "MODULEPATH=${MODULEPATH}" >> spack_clone_variables.env
+    - echo "MODULEPATH=${MODULEPATH}" > spack_clone_variables.env
     # If we are triggered by a PR on GitHub, fetch the body of the PR description
     - if [[ "${PARSE_GITHUB_PR_DESCRIPTIONS}" == "true" && "${CI_PIPELINE_SOURCE}" == "external_pull_request_event" ]]; then
     # Write a small Python script that queries the GitHub API and prints out a
     # series of variable declarations. See the README for documentation of the
     # required content of the GitHub PR description. The expressions in the PR
     # description are parsed into variables of the form:
-    #  SPACK_PACKAGE_REF_{package_name}={ref_type}="{ref}"
+    #  {package_name_upper}_{ref_type_upper}={ref}
     # where `ref_type` is one of `branch`, `tag` and `ref`, for example
-    #  SPACK_PACKAGE_REF_neuron=branch="some/feature_branch"
+    #  NEURON_BRANCH=some/feature-branch
     - |
       cat > parse_description.py << END_SCRIPT
       from __future__ import print_function
@@ -67,11 +64,11 @@ default:
                              headers={'Accept': 'application/vnd.github.v3+json'})
       pr_body = pr_info.json()["body"]
       # match something like NEURON_BRANCH=foo/bar
-      pat = re.compile('^([A-Z0-9_]+)_([A-Z]+)=([A-Z0-9\-\_\/]+)$', re.IGNORECASE)
+      pat = re.compile('^([A-Z0-9_]+)_([A-Z]+)=([A-Z0-9\-\_\/\+]+)$', re.IGNORECASE)
       def parse_term(m):
         ref_type = m.group(2).lower()
         if ref_type not in {'branch', 'tag', 'ref'}: return
-        print('SPACK_PACKAGE_REF_' + m.group(1).lower() + '=' + ref_type + '="' + m.group(3) + '"')
+        print(m.group(1).upper() + '_' + ref_type.upper() + '=' + m.group(3))
       if pr_body is not None:
         for pr_body_line in pr_body.splitlines():
           if not pr_body_line.startswith('CI_BRANCHES:'): continue
@@ -82,29 +79,26 @@ default:
     - cat parse_description.py
     # Save the variables we parsed out of the GitHub PR body for later jobs.
     - (module load unstable python-dev; python parse_description.py) >> spack_clone_variables.env
+    # Load them into the environment of the current job -- this should align
+    # things between the case that we are triggered by a GitHub PR and the case
+    # where we are triggered manually/as a child on GitLab.
+    - . spack_clone_variables.env
+    # For debugging
     - cat spack_clone_variables.env
     # endif that we're triggered by a PR on GitHub
     - fi
   script:
     - echo Preparing to clone Spack into ${PWD}
-    # Figure out what branch of Spack to checkout. If this was steered by the PR
-    # description then there will be an entry of the form:
-    #   SPACK_PACKGE_REF_spack=(tag|branch|commit)="..."
-    # in the file `spack_clone_variables.env`. For now, we only support the case
-    # that it is a branch specification. That's easier and should usually be
-    # sufficient. If a matching line is found, set ${SPACK_BRANCH_PARSED} to the
-    # branch name. Note that doing `. spack_clone_variables.env` to read the
-    # values into the environment is a bad idea, because Bash and GitLab have
-    # different ideas about how to handle the quotes.
-    - SPACK_BRANCH_PARSED=$(sed -n -e "s/^SPACK_PACKAGE_REF_spack=branch=\(['\"]\)\([^\1]\+\)\1/\2/p" spack_clone_variables.env)
-    # If ${SPACK_PACKAGE_REF_spack} is not set, use ${SPACK_BRANCH}.
-    - SPACK_BRANCH=${SPACK_BRANCH_PARSED:-$SPACK_BRANCH}
+    - if [[ -z "${SPACK_BRANCH}" && ( -n "${SPACK_COMMIT}" || -n "${SPACK_TAG}" ) ]]; then
+    - echo "Spack ref must be a branch (BRANCH=${SPACK_BRANCH}, COMMIT=${SPACK_COMMIT}, TAG=${SPACK_TAG})"
+    - fi
     - echo Checking out the ${SPACK_BRANCH} of Spack...
     - git clone --depth 1 --single-branch --branch ${SPACK_BRANCH} ${SPACK_URL} spack
     - SPACK_ROOT=${PWD}/spack
     - rm -f ${SPACK_ROOT}/etc/spack/*.yaml
     - cp ${SPACK_ROOT}/bluebrain/sysconfig/bluebrain5/*.yaml ${SPACK_ROOT}/etc/spack
     - echo "SPACK_ROOT=${SPACK_ROOT}" >> spack_clone_variables.env
+    - echo "SPACK_BRANCH=${SPACK_BRANCH}" >> spack_clone_variables.env # might be the default from this job
     - echo "SPACK_SYSTEM_CONFIG_PATH=/gpfs/bbp.cscs.ch/ssd/apps/bsd/${SPACK_DEPLOYMENT_SUFFIX}/config" >> spack_clone_variables.env
     - echo "SPACK_USER_CACHE_PATH=${CI_BUILDS_DIR}" >> spack_clone_variables.env
     - export $(cat spack_clone_variables.env | xargs)
@@ -170,21 +164,27 @@ default:
     - echo -e "[url \"https://gitlab-ci-token:${CI_JOB_TOKEN}@bbpgitlab.epfl.ch/\"]\n  insteadOf = git@bbpgitlab.epfl.ch:" > "${XDG_CONFIG_HOME}/git/config"
     - cat "${XDG_CONFIG_HOME}/git/config"
     # Figure out what the develop version of this package should refer to. If
-    # this was steered by the PR description then the variable
-    # ${SPACK_PACKAGE_REF_${SPACK_PACKAGE}} should be set to a valid value and
-    # this should take precedence. Otherwise, use ${SPACK_PACKAGE_REF}.
-    - REF_OVERRIDE_NAME=SPACK_PACKAGE_REF_${SPACK_PACKAGE}
-    - PACKAGE_REF=${!REF_OVERRIDE_NAME:-$SPACK_PACKAGE_REF}
+    # this was steered by the PR description or otherwise using
+    # PACKAGE_{BRANCH,COMMIT,TAG} variables then we should respect those.
+    # Otherwise, just use the SPACK_PACKAGE_REF value.
+    - for ref in tag commit branch; do
+    -   var_name="${SPACK_PACKAGE^^}_${ref^^}"
+    -   if [[ -n "${!var_name}" ]]; then
+    -     SPACK_PACKAGE_REF="${ref}='${!var_name}'"
+    -     echo "Set SPACK_PACKAGE_REF=${SPACK_PACKAGE_REF} from ${var_name}=${!var_name}"
+    -     break
+    -   fi
+    - done
     # Modify the Spack recipe so the develop version points at ${SPACK_PACKAGE_REF}
     - SPACK_PACKAGE_FILE="$(spack location -p ${SPACK_PACKAGE})/package.py"
     # Remove any commit/tag/branch identifier from the line containing the
     # develop version and substitute in our desired commit hash. Don't
-    # change anything if ${PACKAGE_REF} is unset or an empty string.
-    - if [ "${PACKAGE_REF}" ]; then
-    - echo New ref for ${SPACK_PACKAGE} is ${PACKAGE_REF}
+    # change anything if ${SPACK_PACKAGE_REF} is unset or an empty string.
+    - if [ "${SPACK_PACKAGE_REF}" ]; then
+    - echo New ref for ${SPACK_PACKAGE} is ${SPACK_PACKAGE_REF}
     # Note that [^\2] doesn't work, backreferences are not expanded there, so
     # we have to use [^\"'].
-    - sed -i -e "/^\s*version\s*(\s*\(['\"]\)develop\1/ { s/,\s*\(commit\|tag\|branch\)=\([\"']\)[^\"']\+\2//g; s#)#, ${PACKAGE_REF})#; }" "${SPACK_PACKAGE_FILE}"
+    - sed -i -e "/^\s*version\s*(\s*\(['\"]\)develop\1/ { s/,\s*\(commit\|tag\|branch\)=\([\"']\)[^\"']\+\2//g; s#)#, ${SPACK_PACKAGE_REF})#; }" "${SPACK_PACKAGE_FILE}"
     - (cd $(dirname "${SPACK_PACKAGE_FILE}") && git diff "${SPACK_PACKAGE_FILE}")
     - fi
     # Get the hash of the version we're about to install. First, construct the
