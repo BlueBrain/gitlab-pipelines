@@ -38,6 +38,8 @@ build-wheels:
     SYS_PACKAGES: !reference [.tox-template, variables, SYS_PACKAGES]
     PRE_BUILD_COMMAND: !reference [.tox-template, variables, PRE_BUILD_COMMAND]
   rules:
+    - if: $PURE_PYTHON
+      when: never
     - when: always
 
 publish-package:

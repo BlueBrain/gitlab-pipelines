@@ -1,3 +1,9 @@
+test_functionalizer:
+  stage: test
+  trigger:
+    project: hpc/circuit-building/spykfunc
+    branch: @TEST_BRANCH@
+    strategy: depend
 test_touchdetector:
   stage: test
   trigger:
