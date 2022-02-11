@@ -26,7 +26,15 @@ The following variables are used in the template:
   existing `tag`, `commit` or `branch` keyword argument is removed from the
   Spack recipe and this is inserted as
   `version("develop", ${SPACK_PACKAGE_REF} ...)` so it should be of the form
-  `commit="sha.."`, `tag="tag_name"` or `branch="branch_name"`.
+  `commit="sha.."`, `tag="tag_name"` or `branch="branch_name"`. This can be
+  overridden by the following variables.
+* `{upper_case_package_name}_{TAG,COMMIT,BRANCH}` (optional): if these are set
+  then `SPACK_PACKAGE_REF` is overwritten with a relevant expression. For
+  example if `NEURON_BRANCH` is set then `SPACK_PACKAGE_REF` will be set to
+  `branch="${NEURON_BRANCH}"`. The order of precedence is tag > commit > branch.
+  These are typically set by `CI_BRANCHES` expressions in GitHub pull request
+  descriptions, when triggering child pipelines, or when manually launching
+  pipelines.
 * `SPACK_PACKAGE_SPEC` (optional): additions to the Spack spec when building.
   Will be used as `${SPACK_PACKAGE}@develop${SPACK_PACKAGE_SPEC}...`.
 * `SPACK_BRANCH` (optional, only for spack_setup): which branch of Spack to
@@ -47,6 +55,11 @@ The following variables are used in the template:
   deployed software built in the CI of PR 1418 to BlueBrain/spack. Make sure
   that you think about what you are doing if you set this and `SPACK_BRANCH`
   inconsistently.
+* `SPACK_PACKAGE_COMMIT` and `SPACK_{upper_case_package_name}_COMMIT` (optional,
+  read-only): the template does not read this values, but when it installs the
+  develop version of a package then it writes the actual git commit used to
+  these variables. This is useful for provenance information, as the commit
+  that a particular branch pointed to is not otherwise recorded.
 
 ## Basic Setup
 

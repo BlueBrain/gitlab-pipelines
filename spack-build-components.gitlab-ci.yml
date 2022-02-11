@@ -274,12 +274,17 @@ default:
     # Now we just include ^/hash_of_B in SPACK_PACKAGE_DEPENDENCIES after
     # building B, and trust that that encodes all relevant constraints.
     - SPACK_PACKAGE_DEPENDENCIES=^/${SPACK_INSTALLED_HASH}
+    # Record the git commit that we actually used when building this package
+    - SPACK_PACKAGE_COMMIT=$(cd ${SPACK_SOURCE_DIR} && git rev-parse HEAD)
+    - echo The develop version mapped onto commit ${SPACK_PACKAGE_COMMIT} in this case, saving that to SPACK_PACKAGE_COMMIT and SPACK_${SPACK_PACKAGE^^}_COMMIT.
     # Overwrite the spack_build_info.env file, otherwise chains of dependent
     # build jobs will duplicate these values.
     - echo "SPACK_BUILD_DIR=${SPACK_BUILD_DIR}" > ${CI_PROJECT_DIR}/spack_build_info.env
     - echo "SPACK_FULL_SPEC=${SPACK_FULL_SPEC}" >> ${CI_PROJECT_DIR}/spack_build_info.env
     - echo "SPACK_SOURCE_DIR=${SPACK_SOURCE_DIR}" >> ${CI_PROJECT_DIR}/spack_build_info.env
     - echo "SPACK_INSTALLED_HASH=${SPACK_INSTALLED_HASH}" >> ${CI_PROJECT_DIR}/spack_build_info.env
+    - echo "SPACK_PACKAGE_COMMIT=${SPACK_PACKAGE_COMMIT}" >> ${CI_PROJECT_DIR}/spack_build_info.env
+    - echo "SPACK_${SPACK_PACKAGE^^}_COMMIT=${SPACK_PACKAGE_COMMIT}" >> ${CI_PROJECT_DIR}/spack_build_info.env
     - echo "SPACK_PACKAGE_DEPENDENCIES=${SPACK_PACKAGE_DEPENDENCIES}" >> ${CI_PROJECT_DIR}/spack_build_info.env
     # Return a meaningful status code by inspecting install.xml. This only
     # loads modules in a subshell so it doesn't pollute the environment. The
