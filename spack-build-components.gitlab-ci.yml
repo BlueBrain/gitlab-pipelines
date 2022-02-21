@@ -121,6 +121,11 @@ default:
     - echo "SPACK_ROOT=${SPACK_ROOT}" >> spack_clone_variables.env
     - echo "SPACK_SYSTEM_CONFIG_PATH=${SPACK_SYSTEM_CONFIG_PATH}" >> spack_clone_variables.env
     - . ${SPACK_ROOT}/share/spack/setup-env.sh
+    # Tell Git how to re-write BBP GitLab URLs to use a token instead of SSH
+    - export XDG_CONFIG_HOME=${PWD}/local_config
+    - mkdir -p "${XDG_CONFIG_HOME}/git"
+    - echo -e "[url \"https://gitlab-ci-token:${CI_JOB_TOKEN}@bbpgitlab.epfl.ch/\"]\n  insteadOf = git@bbpgitlab.epfl.ch:" > "${XDG_CONFIG_HOME}/git/config"
+    - cat "${XDG_CONFIG_HOME}/git/config"
     # Modify any and all Spack recipes based on the PROJECT_{BRANCH,COMMIT,TAG}
     # variables. If we can't figure out what to do, error out immediately. A
     # few variables are explicitly ignored: CI_COMMIT_BRANCH and
