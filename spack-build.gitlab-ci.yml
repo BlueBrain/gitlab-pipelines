@@ -8,6 +8,24 @@ include:
 
 # Set up Spack
 spack_setup:
+  before_script:
+    # As this helper only handles the simple case of building one package, it's
+    # 1. likely that SPACK_PACKAGE has been set globally and is, therefore,
+    #    visible here.
+    # 2. reasonable to make ${${SPACK_PACKAGE}_COMMIT} default to
+    #    ${CI_COMMIT_SHA} if none of ${${SPACK_PACKAGE}_BRANCH},
+    #    ${${SPACK_PACKAGE}_COMMIT} and ${${SPACK_PACKAGE}_TAG} are set.
+    # this means that for simple pipelines we don't have to set *both*
+    # SPACK_PACKAGE and ${${SPACK_PACKAGE}_COMMIT}.
+    - if [[ -n "${SPACK_PACKAGE}" ]]; then
+    - shell_package="${SPACK_PACKAGE//-/_}"; shell_package=${shell_package^^}
+    - branch="${shell_package}_BRANCH"; commit="${shell_package}_COMMIT"; tag="${shell_package}_TAG"
+    - if [[ -z "${!branch}" && -z "${!commit}" && -z "${!tag}" ]]; then
+    - echo "Setting ${commit}=${CI_COMMIT_SHA} based on SPACK_PACKAGE=${SPACK_PACKAGE}, ${branch}=${!branch}, ${commit}=${!commit}, ${tag}=${!tag}"
+    - export ${commit}=${CI_COMMIT_SHA}
+    - fi
+    - fi
+    - !reference [.spack_setup, before_script]
   extends: .spack_setup
 
 spack_build:

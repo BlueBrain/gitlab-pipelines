@@ -38,13 +38,23 @@ default:
     SPACK_BRANCH: develop
     # Which URL to use to check out spack
     SPACK_URL: https://github.com/BlueBrain/spack.git
+  # before_script handles some extra setup of the environment. It fetches a
+  # file containing extra environment variables, either from:
+  #  - the description of an associated GitHub PR, or
+  #  - the artifacts of a previous job, via the SPACK_ENV_FILE_URL variable.
+  # in order that these variables take predence over global defaults, a list of
+  # projects that have PROJECT_{BRANCH,COMMIT,TAG} variables in the file is
+  # generated, and any corresponding PROJECT_{BRANCH,COMMIT,TAG} variables that
+  # are already set in the environment are unset.
   before_script:
-    # Prefer the 2022 deployment modules.
-    - unset MODULEPATH
-    - . /gpfs/bbp.cscs.ch/ssd/apps/bsd/${SPACK_DEPLOYMENT_SUFFIX}/config/modules.sh
-    - echo "MODULEPATH=${MODULEPATH}" > spack_clone_variables.env
+    - if [[ -n "${SPACK_ENV_FILE_URL}" && "${PARSE_GITHUB_PR_DESCRIPTIONS,,}" == "true" ]]; then
+    - echo "Only one of SPACK_ENV_FILE_URL and PARSE_GITHUB_PR_DESCRIPTIONS=true can be set."
+    - exit 1
+    - elif [[ -n "${SPACK_ENV_FILE_URL}" ]]; then
+    - echo SPACK_ENV_FILE_URL was set to ${SPACK_ENV_FILE_URL}, fetching it...
+    - curl --location --output input_variables.env "${SPACK_ENV_FILE_URL}?job_token=${CI_JOB_TOKEN}"
+    - elif [[ "${PARSE_GITHUB_PR_DESCRIPTIONS,,}" == "true" && "${CI_PIPELINE_SOURCE}" == "external_pull_request_event" ]]; then
     # If we are triggered by a PR on GitHub, fetch the body of the PR description
-    - if [[ "${PARSE_GITHUB_PR_DESCRIPTIONS}" == "true" && "${CI_PIPELINE_SOURCE}" == "external_pull_request_event" ]]; then
     # Write a small Python script that queries the GitHub API and prints out a
     # series of variable declarations. See the README for documentation of the
     # required content of the GitHub PR description. The expressions in the PR
@@ -54,7 +64,6 @@ default:
     #  NEURON_BRANCH=some/feature-branch
     - |
       cat > parse_description.py << END_SCRIPT
-      from __future__ import print_function
       import os
       import re
       import requests
@@ -78,36 +87,70 @@ default:
     # GitLab's UI collapses the multi-line command above so this aids debugging
     - cat parse_description.py
     # Save the variables we parsed out of the GitHub PR body for later jobs.
-    - (module load unstable python-dev; python parse_description.py) >> spack_clone_variables.env
-    # Load them into the environment of the current job -- this should align
-    # things between the case that we are triggered by a GitHub PR and the case
-    # where we are triggered manually/as a child on GitLab.
-    - . spack_clone_variables.env
-    # For debugging
-    - cat spack_clone_variables.env
-    # endif that we're triggered by a PR on GitHub
-    - fi
+    - (module load unstable python-dev; python parse_description.py) > input_variables.env
+    - else
+    - touch input_variables.env # Make sure this file exists in any case.
+    - fi # end of blocks that populate input_variables.env
+    # input_variables.env now exists; get a list of project names that it
+    # contains _BRANCH, _COMMIT or _TAG variables for and unset any _BRANCH,
+    # _COMMIT or _TAG variables for those projects that are already set in the
+    # environment.
+    - cat input_variables.env
+    - |
+      for var_to_unset in $(sed 's/^\(.*\?\)_\(BRANCH\|COMMIT\|TAG\)=.*$/\1_BRANCH\n\1_COMMIT\n\1_TAG/' input_variables.env); do
+      if [[ -n "${!var_to_unset}" ]]; then echo "Unsetting ${var_to_unset}"; unset ${var_to_unset}; fi
+      done
+    # Load the new variables into the environment
+    - set -o allexport
+    - . input_variables.env
+    - set +o allexport
   script:
+    # Prefer the 2022 deployment modules.
+    - unset MODULEPATH
+    - . /gpfs/bbp.cscs.ch/ssd/apps/bsd/${SPACK_DEPLOYMENT_SUFFIX}/config/modules.sh
+    - echo "MODULEPATH=${MODULEPATH}" > spack_clone_variables.env
     - echo Preparing to clone Spack into ${PWD}
     - if [[ -z "${SPACK_BRANCH}" && ( -n "${SPACK_COMMIT}" || -n "${SPACK_TAG}" ) ]]; then
     - echo "Spack ref must be a branch (BRANCH=${SPACK_BRANCH}, COMMIT=${SPACK_COMMIT}, TAG=${SPACK_TAG})"
     - fi
     - echo Checking out the ${SPACK_BRANCH} of Spack...
-    - git clone --depth 1 --single-branch --branch ${SPACK_BRANCH} ${SPACK_URL} spack
-    - SPACK_ROOT=${PWD}/spack
-    - rm -f ${SPACK_ROOT}/etc/spack/*.yaml
-    - cp ${SPACK_ROOT}/bluebrain/sysconfig/bluebrain5/*.yaml ${SPACK_ROOT}/etc/spack
+    - module load unstable git
+    - git clone -c feature.manyFiles=true --depth 1 --single-branch --branch ${SPACK_BRANCH} ${SPACK_URL} spack
+    - export SPACK_ROOT=${PWD}/spack
+    - export SPACK_SYSTEM_CONFIG_PATH="/gpfs/bbp.cscs.ch/ssd/apps/bsd/${SPACK_DEPLOYMENT_SUFFIX}/config"
     - echo "SPACK_ROOT=${SPACK_ROOT}" >> spack_clone_variables.env
-    - echo "SPACK_BRANCH=${SPACK_BRANCH}" >> spack_clone_variables.env # might be the default from this job
-    - echo "SPACK_SYSTEM_CONFIG_PATH=/gpfs/bbp.cscs.ch/ssd/apps/bsd/${SPACK_DEPLOYMENT_SUFFIX}/config" >> spack_clone_variables.env
-    - echo "SPACK_USER_CACHE_PATH=${CI_BUILDS_DIR}" >> spack_clone_variables.env
-    - export $(cat spack_clone_variables.env | xargs)
+    - echo "SPACK_SYSTEM_CONFIG_PATH=${SPACK_SYSTEM_CONFIG_PATH}" >> spack_clone_variables.env
     - . ${SPACK_ROOT}/share/spack/setup-env.sh
+    # Modify any and all Spack recipes based on the PROJECT_{BRANCH,COMMIT,TAG}
+    # variables. If we can't figure out what to do, error out immediately. A
+    # few variables are explicitly ignored: CI_COMMIT_BRANCH and
+    # CI_DEFAULT_BRANCH are set by GitLab, and SPACK_BRANCH is special.
+    # If, for example, NEURON_BRANCH=master is set then the file
+    # commit-mapping.env will contain a line NEURON_COMMIT=sha_of_master_now.
+    # Note that empty variables will be ignored. If set,
+    # SPACK_SETUP_IGNORE_PACKAGE_VARIABLES is a whitespace-separated list of
+    # PROJECT names that should be ignored.
+    - set +o pipefail
+    - env -0 | grep -z '^[^=]\+_\(BRANCH\|COMMIT\|TAG\)=.\+' | grep -vz '^\(CI_COMMIT_BRANCH\|CI_DEFAULT_BRANCH\|SPACK_BRANCH\)=' | xargs -0t spack configure-pipeline --ignore-packages ${SPACK_SETUP_IGNORE_PACKAGE_VARIABLES} --write-commit-file=commit-mapping.env
+    - set -o pipefail
+    # Show what we did for debugging purposes.
+    - (cd "${SPACK_ROOT}" && git diff)
+    - cat commit-mapping.env # Exporting the following variables for subsequent jobs
+    # The logic here is that commit-mapping.env should include all of the
+    # branches/commits/external information needed to produce the same Spack,
+    # but it should not refer to any paths in the pipeline working directory.
+    # spack_clone_variables.env additionally includes paths such as SPACK_ROOT.
+    - echo "SPACK_BRANCH=${SPACK_BRANCH}" >> commit-mapping.env
+    - echo "SPACK_DEPLOYMENT_SUFFIX=${SPACK_DEPLOYMENT_SUFFIX}" >> commit-mapping.env
+    - cat commit-mapping.env >> spack_clone_variables.env
     # Trigger bootstrapping and so on, check everything looks OK
     - spack spec -IL ninja
+    # This makes it easy to tell child pipelines (using SPACK_ENV_FILE_URL) to
+    # load this commit-mapping.env file.
+    - echo "SPACK_SETUP_COMMIT_MAPPING_URL=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/jobs/${CI_JOB_ID}/artifacts/commit-mapping.env" >> spack_clone_variables.env
   artifacts:
     when: always
-    paths: [spack_clone_variables.env]
+    paths: [commit-mapping.env, input_variables.env, spack_clone_variables.env]
     reports:
       dotenv: spack_clone_variables.env
 
@@ -127,11 +170,6 @@ default:
 .spack_build:
   extends: .gitlab_pipelines_variables
   stage: build
-  variables:
-    # By default we update the `develop` version of the Spack recipe to point
-    # to this commit ("the commit the pipeline is being run on"). This variable
-    # can be overriden, also with tag="..." or branch="...".
-    SPACK_PACKAGE_REF: commit="${CI_COMMIT_SHA}"
   before_script:
     # Change the staging directory to something specific to this GitLab CI job.
     # This stops Spack from cleaning up previous build directories, which
@@ -154,43 +192,15 @@ default:
         source_cache: ${PWD}/spack-source-cache
       END_SCRIPT
     - spack config blame config
-    - if [ "${SPACK_EXPORT_SPECS}" ]; then
-    - spack export --scope=command_line --module tcl ${SPACK_EXPORT_SPECS} > ${SPACK_USER_CONFIG_PATH}/packages.yaml
-    - cat ${SPACK_USER_CONFIG_PATH}/packages.yaml
-    - fi
     # Tell Git how to re-write BBP GitLab URLs to use a token instead of SSH
     - export XDG_CONFIG_HOME=${PWD}/local_config
     - mkdir -p "${XDG_CONFIG_HOME}/git"
     - echo -e "[url \"https://gitlab-ci-token:${CI_JOB_TOKEN}@bbpgitlab.epfl.ch/\"]\n  insteadOf = git@bbpgitlab.epfl.ch:" > "${XDG_CONFIG_HOME}/git/config"
     - cat "${XDG_CONFIG_HOME}/git/config"
-    # Figure out what the develop version of this package should refer to. If
-    # this was steered by the PR description or otherwise using
-    # PACKAGE_{BRANCH,COMMIT,TAG} variables then we should respect those.
-    # Otherwise, just use the SPACK_PACKAGE_REF value.
-    - for ref in tag commit branch; do
-    -   var_name="${SPACK_PACKAGE^^}_${ref^^}"
-    -   if [[ -n "${!var_name}" ]]; then
-    -     SPACK_PACKAGE_REF="${ref}='${!var_name}'"
-    -     echo "Set SPACK_PACKAGE_REF=${SPACK_PACKAGE_REF} from ${var_name}=${!var_name}"
-    -     break
-    -   fi
-    - done
-    # Modify the Spack recipe so the develop version points at ${SPACK_PACKAGE_REF}
-    - SPACK_PACKAGE_FILE="$(spack location -p ${SPACK_PACKAGE})/package.py"
-    # Remove any commit/tag/branch identifier from the line containing the
-    # develop version and substitute in our desired commit hash. Don't
-    # change anything if ${SPACK_PACKAGE_REF} is unset or an empty string.
-    - if [ "${SPACK_PACKAGE_REF}" ]; then
-    - echo New ref for ${SPACK_PACKAGE} is ${SPACK_PACKAGE_REF}
-    # Note that [^\2] doesn't work, backreferences are not expanded there, so
-    # we have to use [^\"'].
-    - sed -i -e "/^\s*version\s*(\s*\(['\"]\)develop\1/ { s/,\s*\(commit\|tag\|branch\)=\([\"']\)[^\"']\+\2//g; s#)#, ${SPACK_PACKAGE_REF})#; }" "${SPACK_PACKAGE_FILE}"
-    - (cd $(dirname "${SPACK_PACKAGE_FILE}") && git diff "${SPACK_PACKAGE_FILE}")
-    - fi
     # Get the hash of the version we're about to install. First, construct the
     # full spec. This includes ${SPACK_PACKAGE_COMPILER} and ${SPACK_PACKAGE_DEPENDENCIES} if
     # they are not empty.
-    - SPACK_FULL_SPEC="${SPACK_PACKAGE}@develop${SPACK_PACKAGE_COMPILER:+%}${SPACK_PACKAGE_COMPILER}${SPACK_PACKAGE_SPEC}${SPACK_PACKAGE_DEPENDENCIES:+ }${SPACK_PACKAGE_DEPENDENCIES}"
+    - SPACK_FULL_SPEC="${SPACK_PACKAGE}${SPACK_PACKAGE_COMPILER:+%}${SPACK_PACKAGE_COMPILER} ${SPACK_PACKAGE_SPEC} ${SPACK_PACKAGE_DEPENDENCIES} ${SPACK_PACKAGE_DEPENDENCY_ON_PREVIOUS_JOB}"
     - echo "Preparing to install ${SPACK_FULL_SPEC}"
     # Then extract the hash
     - JSON_SPEC=$(spack spec --json ${SPACK_FULL_SPEC})
@@ -266,32 +276,18 @@ default:
     # saved from.  Make sure that optional files exist.
     - touch ${SPACK_STAGE_DIR}/spack-configure-args.txt
     - cp ${SPACK_STAGE_DIR}/spack-{build-env,build-out,configure-args}.txt ${CI_PROJECT_DIR}/
-    # NOTE changed behaviour. Before we would append ^/new_hash to the
-    # SPACK_PACKAGE_DEPENDENCIES variable. This produced a rather long spec for
-    # the later stages of a chain of build jobs, and also included any extra
-    # specs that were specified manually along the way, i.e. for A <- B <- C
-    #   ^dep_of_A+variant^/hash_of_A^dep_of_B%gcc^/hash_of_B
-    # Now we just include ^/hash_of_B in SPACK_PACKAGE_DEPENDENCIES after
-    # building B, and trust that that encodes all relevant constraints.
-    - SPACK_PACKAGE_DEPENDENCIES=^/${SPACK_INSTALLED_HASH}
-    # Record the git commit that we actually used when building this package
-    - SPACK_PACKAGE_COMMIT=$(cd ${SPACK_SOURCE_DIR} && git rev-parse HEAD)
-    - echo The develop version mapped onto commit ${SPACK_PACKAGE_COMMIT} in this case, saving that to SPACK_PACKAGE_COMMIT and SPACK_${SPACK_PACKAGE^^}_COMMIT.
     # Overwrite the spack_build_info.env file, otherwise chains of dependent
     # build jobs will duplicate these values.
     - echo "SPACK_BUILD_DIR=${SPACK_BUILD_DIR}" > ${CI_PROJECT_DIR}/spack_build_info.env
     - echo "SPACK_FULL_SPEC=${SPACK_FULL_SPEC}" >> ${CI_PROJECT_DIR}/spack_build_info.env
     - echo "SPACK_SOURCE_DIR=${SPACK_SOURCE_DIR}" >> ${CI_PROJECT_DIR}/spack_build_info.env
     - echo "SPACK_INSTALLED_HASH=${SPACK_INSTALLED_HASH}" >> ${CI_PROJECT_DIR}/spack_build_info.env
-    - echo "SPACK_PACKAGE_COMMIT=${SPACK_PACKAGE_COMMIT}" >> ${CI_PROJECT_DIR}/spack_build_info.env
-    - echo "SPACK_${SPACK_PACKAGE^^}_COMMIT=${SPACK_PACKAGE_COMMIT}" >> ${CI_PROJECT_DIR}/spack_build_info.env
-    - echo "SPACK_PACKAGE_DEPENDENCIES=${SPACK_PACKAGE_DEPENDENCIES}" >> ${CI_PROJECT_DIR}/spack_build_info.env
+    - echo "SPACK_PACKAGE_DEPENDENCY_ON_PREVIOUS_JOB=^/${SPACK_INSTALLED_HASH}" >> ${CI_PROJECT_DIR}/spack_build_info.env
     # Return a meaningful status code by inspecting install.xml. This only
     # loads modules in a subshell so it doesn't pollute the environment. The
     # snippet counts the number of <failure> tags in the XML.
     - num_failures=$(module load unstable python-dev; python -c "from lxml import etree; xml = etree.parse('${CI_PROJECT_DIR}/install.xml'); print(sum(1 for _ in xml.getroot().iter('failure')) + sum(1 for _ in xml.getroot().iter('error')))")
-    - echo "Returning the number of failed builds, ${num_failures}"
-    - exit ${num_failures}
+    - if [[ ${num_failures} > 0 ]]; then exit ${num_failures}; fi
   needs: ["spack_setup"]
   artifacts:
     when: always
@@ -332,7 +328,7 @@ default:
     # Load the Spack installation that knows about the package to be tested.
     - . ${SPACK_ROOT}/share/spack/setup-env.sh
   script:
-    - spack load ${SPACK_FULL_SPEC}
+    - spack load /${SPACK_INSTALLED_HASH}
     - sh ${SPACK_SOURCE_DIR}/.ci/test_${CI_JOB_NAME}.sh
   artifacts:
     when: always

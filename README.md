@@ -15,35 +15,41 @@ Currently, the following templates are provided:
 The following variables are used in the template:
 
 * `SPACK_PACKAGE` (required): the package to use when building with Spack.
-  Will be used as `${SPACK_PACKAGE}@develop`.
+  Will be used as `${SPACK_PACKAGE}`.
 * `SPACK_PACKAGE_COMPILER` (optional): compiler for Spack to use. If this is
-  set the leading `%` will be added automatically.
+  set then the leading `%` will be added automatically.
 * `SPACK_PACKAGE_DEPENDENCIES` (optional): additions to the dependencies part
    of the Spack spec. You should include the leading `^` if you set this.
-* `SPACK_PACKAGE_REF` (optional): which git commit/tag/branch to checkout when
-  building the package. By default the git commit (`${CI_COMMIT_SHA}`) the
-  pipeline is running on is used. If this is set to a non-empty string then any
-  existing `tag`, `commit` or `branch` keyword argument is removed from the
-  Spack recipe and this is inserted as
-  `version("develop", ${SPACK_PACKAGE_REF} ...)` so it should be of the form
-  `commit="sha.."`, `tag="tag_name"` or `branch="branch_name"`. This can be
-  overridden by the following variables.
-* `{upper_case_package_name}_{TAG,COMMIT,BRANCH}` (optional): if these are set
-  then `SPACK_PACKAGE_REF` is overwritten with a relevant expression. For
-  example if `NEURON_BRANCH` is set then `SPACK_PACKAGE_REF` will be set to
-  `branch="${NEURON_BRANCH}"`. The order of precedence is tag > commit > branch.
-  These are typically set by `CI_BRANCHES` expressions in GitHub pull request
-  descriptions, when triggering child pipelines, or when manually launching
-  pipelines.
 * `SPACK_PACKAGE_SPEC` (optional): additions to the Spack spec when building.
-  Will be used as `${SPACK_PACKAGE}@develop${SPACK_PACKAGE_SPEC}...`.
+  Will be used as `${SPACK_PACKAGE} ${SPACK_PACKAGE_SPEC}...`.
+* `{upper_case_package_name}_{TAG,COMMIT,BRANCH}` (optional): if these are set
+  then the `.spack-setup` job passes them to `spack configure-pipeline`, which
+  modifies recipes accordingly. These would typically be set by `CI_BRANCHES`
+  expressions in GitHub pull request descriptions, when triggering child
+  pipelines, or manually when launching a pipeline. If the `_BRANCH` and `_TAG`
+  variants are used then these will be resolved to commits in the
+  `.spack_setup` job and the corresponding `_COMMIT` variable will be set. Note
+  that you will almost certainly want to set `PACKAGE1_COMMIT=${CI_COMMIT_SHA}`
+  in any CI plan for "package1" that you build using
+  `spack-build-components.gitlab-ci.yml`. If you use
+  `spack-build.gitlab-ci.yml` or `spack-build-ctest.gitlab-ci.yml` then this
+  will be set automatically based on `${SPACK_PACKAGE}`.
 * `SPACK_BRANCH` (optional, only for spack_setup): which branch of Spack to
   use.
-* `SPACK_EXPORT_SPECS` (optional, discouraged): a list of Spack specs that will
-  be added to a build-step-local `packages.yaml` as external packages. This can
-  be used to encourage Spack not to rebuild too much of the world, in
-  particular if you are trying to build with a nonstandard compiler or compiler
-  version. Passed to `spack export --scope=user --module tcl --explicit`.
+* `SPACK_ENV_FILE_URL` (optional, only for spack_setup): an artifact URL to
+  download using the GitLab API before setting up Spack. This would typically
+  be set to `$SPACK_SETUP_COMMIT_MAPPING_URL` when triggering a child pipeline
+  in a different project to ensure that the two pipelines use consistent
+  versions. This cannot be set at the same time as
+  `PARSE_GITHUB_PR_DESCRIPTIONS="true"`.
+* `SPACK_SETUP_COMMIT_MAPPING_URL` (output by spack_setup): the GitLab
+  API URL of an artifact file produced by the `spack_setup` job that contains:
+  a `{upper_case_package_name}_COMMIT=hash` line for every package whose recipe
+  was modified based on `{upper_case_package_name}_{TAG,COMMIT,BRANCH}`
+  variables, a `SPACK_BRANCH=branch` line, and a line setting
+  `SPACK_DEPLOYMENT_SUFFIX`. In principle this contains enough information to
+  reproduce the same Spack setup in a downstream pipeline, but it does not
+  contain any references to paths in the current pipeline working directory.
 * `SPACK_INSTALL_EXTRA_FLAGS` (optional, debug): these arguments are passed to
   the install command as `spack ${SPACK_INSTALL_EXTRA_FLAGS} install ...`. It
   may be useful to set this to `--debug`, `-ddd` etc. when manually launching a
@@ -55,11 +61,6 @@ The following variables are used in the template:
   deployed software built in the CI of PR 1418 to BlueBrain/spack. Make sure
   that you think about what you are doing if you set this and `SPACK_BRANCH`
   inconsistently.
-* `SPACK_PACKAGE_COMMIT` and `SPACK_{upper_case_package_name}_COMMIT` (optional,
-  read-only): the template does not read this values, but when it installs the
-  develop version of a package then it writes the actual git commit used to
-  these variables. This is useful for provenance information, as the commit
-  that a particular branch pointed to is not otherwise recorded.
 
 ## Basic Setup
 
@@ -120,10 +121,13 @@ that you can inherit from.
 For example, your pipeline almost certainly needs to start by setting up Spack:
 ```yaml
 spack_setup:
-  extends: .spack_setup_ccache # Enable ccache support in Spack (incomplete!)
+  extends: .spack_setup_ccache # Enable ccache support in Spack
 ```
 and then you might want to build a package:
 ```yaml
+variables:
+  CORENEURON_COMMIT: ${CI_COMMIT_SHA} # assume this pipeline runs on CoreNEURON
+
 build:coreneuron:
   variables:
     SPACK_PACKAGE: coreneuron
@@ -140,6 +144,9 @@ test:coreneuron:
 ```
 and build another package that depends on the first one:
 ```yaml
+variables:
+  NEURON_BRANCH: master
+
 build:neuron:
   variables:
     SPACK_PACKAGE: neuron
@@ -152,7 +159,7 @@ build:neuron:
 The `.spack_build` template will automatically extract the hash (`deadbeef...`)
 describing the first installed package (`coreneuron`) and add it to the Spack
 spec of the second package (`neuron`), constructing something like
-`spack install neuron@develop+coreneuron^/deadbeef...` that guarantees the
+`spack install neuron+coreneuron^/deadbeef...` that guarantees the
 CI build of the second package uses the CI build of the first one.
 
 Note that because in this example `build:neuron` and `test_coreneuron` have
@@ -160,6 +167,7 @@ the same dependencies (`needs: ["build:coreneuron"]`) they will execute in
 parallel in the pipeline.
 
 ## Configuring alternative branches using GitHub pull request keywords
+
 When using GitLab CI with an external GitHub repository, such as BBP's open
 source projects, it can be useful to build against specific versions of
 dependencies instead of just using the tip of the default branch. To enable
@@ -186,16 +194,8 @@ and `tag`. `REF` is case sensitive. For example:
 ```
 CI_BRANCHES:NEURON_BRANCH=some/feature-branch
 ```
-Note that these requests will only be honoured for packages that have explicit
-build steps in the pipeline. For example, in the above example with CoreNEURON
-and NEURON that runs in the CI for CoreNEURON then:
-- `CI_BRANCHES:NEURON_BRANCH=some/feature-branch` makes sense and should work
-- `CI_BRANCHES:CORENEURON_BRANCH=some/feature-branch` is nonsensical, you would
-  be running a CI pipeline attached to a particular ref in CoreNEURON that
-  builds and tests a different ref in CoreNEURON. That said, it will silently
-  build the specified branch and override the default `${CI_COMMIT_SHA}`.
-- `CI_BRANCHES:BISON_TAG=v3.0.6` will be silently ignored, CoreNEURON depends
-  on `bison` but there is no explicit build step for `bison`.
+The variables will be set in the CI job environment and passed to the
+`spack configure-pipeline` command.
 
 The branch of Spack that is checked out can be specified using the same syntax,
 `CI_BRANCHES:SPACK_BRANCH=some/feature-branch`. In this case only branch
@@ -218,17 +218,3 @@ include:
 With this configuration the GitLab CI will run every time an update is made to
 a pull request on GitHub. It will also run when changes are pushed to the
 default branch.
-
-# Limitations
-
-This section lists a few known limitations of the templates.
-- `SPACK_PACKAGE_DEPENDENCIES` is overriden by the output artifacts of build
-  steps. This means if you are building `library` and `application` (that
-  depends on `library`) in your pipeline then setting
-  `SPACK_PACKAGE_DEPENDENCIES` explicitly on `application` will have no effect;
-  it will be overwritten by some `^/hash_of_library_installation` from `library`
-- All build jobs share one Spack installation, this means that if you have
-  multiple build jobs for the same package then they will all try and modify
-  the same recipe (`package.py`). This is probably OK unless the build steps
-  have different `SPACK_PACKAGE_REF` values; in that case you should use
-  `needs` relationships to avoid the builds running in parallel.
