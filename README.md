@@ -42,6 +42,11 @@ The following variables are used in the template:
   in a different project to ensure that the two pipelines use consistent
   versions. This cannot be set at the same time as
   `PARSE_GITHUB_PR_DESCRIPTIONS="true"`.
+* `SPACK_SETUP_IGNORE_PACKAGE_VARIABLES` (optional, only for spack_setup): a
+  whitespace-separated list of package names that should be ignored if branch,
+  commit or tag variables appear in the environment. For example, if you add
+  `BLUECONFIGS` to this list, `BLUECONFIGS_BRANCH` will be ignored if it is set
+  in the environment.
 * `SPACK_SETUP_COMMIT_MAPPING_URL` (output by spack_setup): the GitLab
   API URL of an artifact file produced by the `spack_setup` job that contains:
   a `{upper_case_package_name}_COMMIT=hash` line for every package whose recipe

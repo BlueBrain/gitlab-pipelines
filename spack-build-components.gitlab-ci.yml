@@ -117,8 +117,10 @@ default:
     - module load unstable git
     - git clone -c feature.manyFiles=true --depth 1 --single-branch --branch ${SPACK_BRANCH} ${SPACK_URL} spack
     - export SPACK_ROOT=${PWD}/spack
+    - export SPACK_USER_CACHE_PATH="${CI_BUILDS_DIR}"
     - export SPACK_SYSTEM_CONFIG_PATH="/gpfs/bbp.cscs.ch/ssd/apps/bsd/${SPACK_DEPLOYMENT_SUFFIX}/config"
     - echo "SPACK_ROOT=${SPACK_ROOT}" >> spack_clone_variables.env
+    - echo "SPACK_USER_CACHE_PATH=${SPACK_USER_CACHE_PATH}" >> spack_clone_variables.env
     - echo "SPACK_SYSTEM_CONFIG_PATH=${SPACK_SYSTEM_CONFIG_PATH}" >> spack_clone_variables.env
     - . ${SPACK_ROOT}/share/spack/setup-env.sh
     # Tell Git how to re-write BBP GitLab URLs to use a token instead of SSH
