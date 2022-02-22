@@ -134,9 +134,11 @@ default:
     # commit-mapping.env will contain a line NEURON_COMMIT=sha_of_master_now.
     # Note that empty variables will be ignored. If set,
     # SPACK_SETUP_IGNORE_PACKAGE_VARIABLES is a whitespace-separated list of
-    # PROJECT names that should be ignored.
+    # PROJECT names that should be ignored. Variables starting with CUSTOM_ENV_
+    # seem to be set if the `bb5` tag is used, and are duplicates that should
+    # be ignored.
     - set +o pipefail
-    - env -0 | grep -z '^[^=]\+_\(BRANCH\|COMMIT\|TAG\)=.\+' | grep -vz '^\(CI_COMMIT_BRANCH\|CI_DEFAULT_BRANCH\|SPACK_BRANCH\)=' | xargs -0t spack configure-pipeline --ignore-packages ${SPACK_SETUP_IGNORE_PACKAGE_VARIABLES} --write-commit-file=commit-mapping.env
+    - env -0 | grep -z '^[^=]\+_\(BRANCH\|COMMIT\|TAG\)=.\+' | grep -vz '^CUSTOM_ENV_' | xargs -0t spack configure-pipeline --ignore-packages CI_COMMIT CI_DEFAULT SPACK ${SPACK_SETUP_IGNORE_PACKAGE_VARIABLES} --write-commit-file=commit-mapping.env
     - set -o pipefail
     # Show what we did for debugging purposes.
     - (cd "${SPACK_ROOT}" && git diff)
