@@ -138,10 +138,9 @@ default:
     # SPACK_SETUP_IGNORE_PACKAGE_VARIABLES is a whitespace-separated list of
     # PROJECT names that should be ignored. Variables starting with CUSTOM_ENV_
     # seem to be set if the `bb5` tag is used, and are duplicates that should
-    # be ignored.
-    - set +o pipefail
-    - env -0 | grep -z '^[^=]\+_\(BRANCH\|COMMIT\|TAG\)=.\+' | grep -vz '^CUSTOM_ENV_' | xargs -0t spack configure-pipeline --ignore-packages CI_COMMIT CI_DEFAULT SPACK ${SPACK_SETUP_IGNORE_PACKAGE_VARIABLES} --write-commit-file=commit-mapping.env
-    - set -o pipefail
+    # be ignored. This sed command deletes lines starting with CUSTOM_ENV_ and
+    # then prints lines starting with [^=]\+_\(BRANCH\|COMMIT\|TAG\)=.
+    - env -0 | sed -nz '/^CUSTOM_ENV_/d;/^[^=]\+_\(BRANCH\|COMMIT\|TAG\)=/p' | xargs -0t spack configure-pipeline --ignore-packages CI_COMMIT CI_DEFAULT SPACK ${SPACK_SETUP_IGNORE_PACKAGE_VARIABLES} --write-commit-file=commit-mapping.env
     # Show what we did for debugging purposes.
     - (cd "${SPACK_ROOT}" && git diff)
     - cat commit-mapping.env # Exporting the following variables for subsequent jobs
