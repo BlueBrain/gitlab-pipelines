@@ -33,7 +33,8 @@ The following variables are used in the template:
   in any CI plan for "package1" that you build using
   `spack-build-components.gitlab-ci.yml`. If you use
   `spack-build.gitlab-ci.yml` or `spack-build-ctest.gitlab-ci.yml` then this
-  will be set automatically based on `${SPACK_PACKAGE}`.
+  will be set automatically based on `${SPACK_PACKAGE}`. Empty values will be
+  ignored, which means that the preferred version of that package will be used.
 * `SPACK_BRANCH` (optional, only for spack_setup): which branch of Spack to
   use.
 * `SPACK_ENV_FILE_URL` (optional, only for spack_setup): an artifact URL to
