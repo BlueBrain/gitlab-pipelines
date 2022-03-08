@@ -5,10 +5,19 @@ when dealing with Spack.
 
 Currently, the following templates are provided:
 
+* `bbp-gitlab-access.yml` to configure accessing BBP GitLab using CI jobs'
+  ephemeral tokens.
+* `github-project-pipelines.gitlab-ci.yml` sensible defaults for GitHub
+  projects.
 * `spack-build.gitlab-ci.yml` to build software with Spack.
 * `spack-build-ctest.gitlab-ci.yml` to build software with Spack and run
   CTest on it.
-* `spack-build-components.gitlab-ci.yml` to build more complicated pipelines using Spack and CTest.
+* `spack-build-components.gitlab-ci.yml` to build more complicated pipelines
+  using Spack and CTest.
+* `tox-nse.gitlab-ci.yml` to build a python package with tox following NSE
+  practices
+* `tox-nse-docs.gitlab-ci.yml` to build as above, but with documentation
+  generation and upload enabled
 
 ## Configuration
 
@@ -211,6 +220,38 @@ This is a re-implementation of a similar feature in the previous CI setup that
 was based on Jenkins.
 
 # Other useful templates
+
+This repository also includes other templates that may be useful when building
+CI pipelines.
+
+## bbp-gitlab-access.yml
+
+A common issue is that private BBP software, which is hosted on the BBP GitLab
+instance, cannot be cloned from there without authentication.
+When running interactively, we typically use URLs such as
+```
+git@bbpgitlab.epfl.ch:hpc/gitlab-pipelines.git
+```
+and rely on our personal SSH keys being registered with GitLab.
+This does not work in CI jobs, at least those using the recommended `bb5_map`
+tag, as there is no relevant SSH key.
+One solution to this problem is to use the
+[`${CI_JOB_TOKEN}`](https://docs.gitlab.com/ee/ci/jobs/ci_job_token.html)
+variable that is provided by GitLab instead of SSH.
+The `bbp-gitlab-access.yml` file provides a job template called
+`.bbp_gitlab_access` whose `script` block sets `$XDG_CONFIG_HOME` to a
+job-unique directory and writes a `git` configuration file that redirects
+`git@bbpgitlab.epfl.ch` URLs to use `${CI_JOB_TOKEN}`.
+To use this, you should add `bbp-gitlab-access.yml` to an `include:` block in
+your YAML file and then do something like:
+```yaml
+myjob:
+  script:
+   - !reference [.bbp_gitlab_access, script]
+   - git clone git@bbpgitlab.epfl.ch:hpc/gitlab-pipelines.git
+```
+
+## github-project-pipelines.gitlab-ci.yml
 
 This repository also includes a template,
 `github-project-pipelines.gitlab-ci.yml`, that configures sensible default
