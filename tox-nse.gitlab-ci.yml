@@ -28,7 +28,7 @@ workflow:
 
 build-package:
   rules:
-    - when: always
+    - when: on_success
 
 build-wheels:
   parallel:
@@ -40,7 +40,7 @@ build-wheels:
   rules:
     - if: $PURE_PYTHON
       when: never
-    - when: always
+    - when: on_success
 
 publish-package:
   rules:
