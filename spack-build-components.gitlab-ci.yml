@@ -9,8 +9,25 @@ include: 'bbp-gitlab-access.yml'
 
 .gitlab_pipelines_variables:
   variables:
-    # Default values for Slurm
+    # These two variables try to make `mpiexec -n <N>` do something sensible
+    # when used inside a CI job that runs on BB5. Because of the way the BB5
+    # runner is set up, the CI script (i.e. the lines you put inside the
+    # before_script and script YAML blocks) is run inside the job allocation
+    # using srun and occupies all the resources. If we want to spawn another
+    # job from that CI script, we have to use --overlap so that it is allowed
+    # to run on those already-occupied occupied resources. This means that jobs
+    # spawned from the CI script are also allocated all of the resources in the
+    # job allocation. If the spawned child job is an MPI application then by
+    # default hpe-mpi will pin the MPI ranks to cores starting from the
+    # beginning of the allocated resources. Because all child jobs are
+    # allocated all of the resources, this means that the child ranks are all
+    # pinned to the same cores. Setting MPI_DSM_DISTRIBUTE=0 disables this
+    # pinning and lets the OS scheduler spread the spawned jobs over the
+    # available cores. This might not work well if the allocated resources span
+    # multiple nodes.
     SLURM_OVERLAP: 1
+    MPI_DSM_DISTRIBUTE: 0
+    # Default values for Slurm
     SALLOC_ACCOUNT: proj12
     SBATCH_ACCOUNT: proj12
     SLURM_ACCOUNT: proj12
