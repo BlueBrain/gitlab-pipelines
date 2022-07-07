@@ -21,6 +21,13 @@ publish-docs:
   # Contrary to NSE's do_release.py (requires specific format of setup.py),
   # we should integrate documentation uploading into tox to avoid special
   # virtual environments et al when manually reproducing this.
+  #
+  # Please make sure that the following variables are in the `passenv` section of the tox
+  # `publish-docs` job:
+  #
+  # - CI
+  # - DOCS_INTERNAL_TOKEN
+  # - DOCS_INTERNAL_TOKEN_NAME
   extends: .tox-template
   needs:
     - docs
