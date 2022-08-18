@@ -304,6 +304,8 @@ include: 'bbp-gitlab-access.yml'
     - echo "SPACK_FULL_SPEC=${SPACK_FULL_SPEC}" >> ${CI_PROJECT_DIR}/spack_build_info.env
     - echo "SPACK_SOURCE_DIR=${SPACK_SOURCE_DIR}" >> ${CI_PROJECT_DIR}/spack_build_info.env
     - echo "SPACK_INSTALLED_HASH=${SPACK_INSTALLED_HASH}" >> ${CI_PROJECT_DIR}/spack_build_info.env
+    - SPACK_PACKAGE_SLUGIFY=$(echo -n ${SPACK_PACKAGE} | tr -c '[:alnum:]' '_' | tr '[:lower:]' '[:upper:]')
+    - echo "${SPACK_PACKAGE_SLUGIFY}_INSTALLED_HASH=${SPACK_INSTALLED_HASH}" >> ${CI_PROJECT_DIR}/spack_build_info.env
     - echo "SPACK_PACKAGE_DEPENDENCY_ON_PREVIOUS_JOB=^/${SPACK_INSTALLED_HASH}" >> ${CI_PROJECT_DIR}/spack_build_info.env
     # Return a meaningful status code by inspecting install.xml. This only
     # loads modules in a subshell so it doesn't pollute the environment. The
