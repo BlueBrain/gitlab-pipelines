@@ -92,7 +92,7 @@ include: 'bbp-gitlab-access.yml'
                              headers={'Accept': 'application/vnd.github.v3+json'})
       pr_body = pr_info.json()["body"]
       # match something like NEURON_BRANCH=foo/bar
-      pat = re.compile('^([A-Z0-9_]+)_([A-Z]+)=([A-Z0-9\-\_\/\+]+)$', re.IGNORECASE)
+      pat = re.compile('^([A-Z0-9_]+)_([A-Z]+)=([A-Z0-9\-\_\/\+\.]+)$', re.IGNORECASE)
       def parse_term(m):
         ref_type = m.group(2).lower()
         if ref_type not in {'branch', 'tag', 'ref'}: return
