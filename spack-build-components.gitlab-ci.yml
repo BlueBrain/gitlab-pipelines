@@ -66,6 +66,8 @@ include: 'bbp-gitlab-access.yml'
   # generated, and any corresponding PROJECT_{BRANCH,COMMIT,TAG} variables that
   # are already set in the environment are unset.
   before_script:
+    - echo "${SPACK_ENV_FILE_URL}"
+    - echo "${PARSE_GITHUB_PR_DESCRIPTIONS}"
     - if [[ -n "${SPACK_ENV_FILE_URL}" && "${PARSE_GITHUB_PR_DESCRIPTIONS,,}" == "true" ]]; then
     - echo "Only one of SPACK_ENV_FILE_URL and PARSE_GITHUB_PR_DESCRIPTIONS=true can be set."
     - exit 1
