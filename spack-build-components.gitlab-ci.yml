@@ -46,6 +46,7 @@ include: 'bbp-gitlab-access.yml'
     bb5_account: proj12
     # Shared input directory for HPC integration tests.
     DATADIR: /gpfs/bbp.cscs.ch/project/proj12/jenkins
+    SPACK_BRANCH: develop
 
 # Set up a clone of Spack for use in this pipeline and export a variable called
 # SPACK_ROOT that points to it.
@@ -54,7 +55,7 @@ include: 'bbp-gitlab-access.yml'
   extends: .gitlab_pipelines_variables
   variables:
     # What version of BlueBrain/spack to use. You can override this if need be.
-    SPACK_BRANCH: develop
+    SPACK_BRANCH: $SPACK_BRANCH
     # Which URL to use to check out spack
     SPACK_URL: https://github.com/BlueBrain/spack.git
   # before_script handles some extra setup of the environment. It fetches a
