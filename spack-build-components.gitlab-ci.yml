@@ -42,8 +42,6 @@ include: 'bbp-gitlab-access.yml'
     bb5_build_dir: pipeline
     # Do not put the name of the repository in the working directory
     GIT_CLONE_PATH: ${CI_BUILDS_DIR}/J${CI_JOB_ID}
-    # Make the top-level jobs launched by the GitLab CI use the same account
-    bb5_account: proj12
     # Shared input directory for HPC integration tests.
     DATADIR: /gpfs/bbp.cscs.ch/project/proj12/jenkins
 
