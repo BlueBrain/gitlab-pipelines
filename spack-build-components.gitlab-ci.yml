@@ -44,6 +44,8 @@ include: 'bbp-gitlab-access.yml'
     GIT_CLONE_PATH: ${CI_BUILDS_DIR}/J${CI_JOB_ID}
     # Shared input directory for HPC integration tests.
     DATADIR: /gpfs/bbp.cscs.ch/project/proj12/jenkins
+    # CI jobs should normally be short, so default to using prod_small
+    bb5_partition: prod_small
 
 # Set up a clone of Spack for use in this pipeline and export a variable called
 # SPACK_ROOT that points to it.
