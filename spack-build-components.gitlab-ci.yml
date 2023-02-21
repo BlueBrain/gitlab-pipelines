@@ -51,6 +51,8 @@ include: 'bbp-gitlab-access.yml'
   stage: .pre
   extends: .gitlab_pipelines_variables
   variables:
+    # FIXME remove again
+    SPACK_DEPLOYMENT_SUFFIX: pulls/1765
     # What version of BlueBrain/spack to use. You can override this if need be.
     SPACK_BRANCH: develop
     # Which URL to use to check out spack
@@ -220,10 +222,14 @@ include: 'bbp-gitlab-access.yml'
     # Get the hash of the version we're about to install. First, construct the
     # full spec. This includes ${SPACK_PACKAGE_COMPILER} and ${SPACK_PACKAGE_DEPENDENCIES} if
     # they are not empty.
-    - SPACK_FULL_SPEC="${SPACK_PACKAGE}${SPACK_PACKAGE_COMPILER:+%}${SPACK_PACKAGE_COMPILER} ${SPACK_PACKAGE_SPEC} ${SPACK_PACKAGE_DEPENDENCIES} ${SPACK_PACKAGE_DEPENDENCY_ON_PREVIOUS_JOB}"
+    - SPACK_EXTRA_FLAGS=""
+    - if [[ -n "${SPACK_PACKAGE_COMPILER}" ]]; then
+    -   SPACK_EXTRA_FLAGS="${SPACK_EXTRA_FLAGS}${SPACK_EXTRA_FLAGS:+ }-c \"packages:${SPACK_PACKAGE}:require:'%${SPACK_PACKAGE_COMPILER}'\""
+    - fi
+    - SPACK_FULL_SPEC="${SPACK_PACKAGE} ${SPACK_PACKAGE_SPEC} ${SPACK_PACKAGE_DEPENDENCIES} ${SPACK_PACKAGE_DEPENDENCY_ON_PREVIOUS_JOB}"
     - echo "Preparing to install ${SPACK_FULL_SPEC}"
     # Then extract the hash
-    - JSON_SPEC=$(spack spec --json ${SPACK_FULL_SPEC})
+    - JSON_SPEC=$(spack ${SPACK_EXTRA_FLAGS} spec --json ${SPACK_FULL_SPEC})
     - SPACK_INSTALLED_HASH=$(module load unstable python; echo "${JSON_SPEC}" | python -c "import json, sys; print(json.loads(sys.stdin.read())[\"spec\"][\"nodes\"][0][\"hash\"])")
     - echo "Determined its hash will be ${SPACK_INSTALLED_HASH}"
     # Construct the directories Spack is going to use to build the package.
@@ -276,11 +282,11 @@ include: 'bbp-gitlab-access.yml'
     - spack uninstall -y --dependents /${SPACK_INSTALLED_HASH} || true
     # Show what we're going to do, ignore the duplication with `spack spec`
     # above for now
-    - spack spec -Il ${SPACK_FULL_SPEC}
+    - spack ${SPACK_EXTRA_FLAGS} spec -Il ${SPACK_FULL_SPEC}
     # Install that new version. Use an absolute path for install.xml so it ends
     # up in the original job working directory even if that's no longer the
     # working directory.
-    - spack ${SPACK_INSTALL_EXTRA_FLAGS} install -j${SLURM_CPUS_PER_TASK} --log-format=junit --log-file=${CI_PROJECT_DIR}/install.xml --keep-stage ${SPACK_FULL_SPEC} || install_failed=1
+    - spack ${SPACK_EXTRA_FLAGS} install -j${SLURM_CPUS_PER_TASK} --log-format=junit --log-file=${CI_PROJECT_DIR}/install.xml --keep-stage ${SPACK_FULL_SPEC} || install_failed=1
     # Try and improve debuggability, Spack likes making things only-owner-readable.
     - chmod -R g+rX "${SPACK_BUILD}"
     # Exit if we failed just above.
