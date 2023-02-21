@@ -225,7 +225,7 @@ include: 'bbp-gitlab-access.yml'
     # they are not empty.
     - SPACK_EXTRA_FLAGS=""
     - if [[ -n "${SPACK_PACKAGE_COMPILER}" ]]; then
-    -   SPACK_EXTRA_FLAGS="${SPACK_EXTRA_FLAGS}${SPACK_EXTRA_FLAGS:+ }-c \"packages:${SPACK_PACKAGE}:require:'%${SPACK_PACKAGE_COMPILER}'\""
+    -   SPACK_EXTRA_FLAGS="${SPACK_EXTRA_FLAGS}${SPACK_EXTRA_FLAGS:+ }-c packages:${SPACK_PACKAGE}:require:'%${SPACK_PACKAGE_COMPILER}'"
     - fi
     - SPACK_FULL_SPEC="${SPACK_PACKAGE} ${SPACK_PACKAGE_SPEC} ${SPACK_PACKAGE_DEPENDENCIES} ${SPACK_PACKAGE_DEPENDENCY_ON_PREVIOUS_JOB}"
     - echo "Preparing to install ${SPACK_FULL_SPEC}"
