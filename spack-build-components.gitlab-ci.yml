@@ -54,7 +54,8 @@ include: 'bbp-gitlab-access.yml'
     # FIXME remove again
     SPACK_DEPLOYMENT_SUFFIX: pulls/1765
     # What version of BlueBrain/spack to use. You can override this if need be.
-    SPACK_BRANCH: develop
+    # FIXME
+    SPACK_BRANCH: up-the-stream
     # Which URL to use to check out spack
     SPACK_URL: https://github.com/BlueBrain/spack.git
   # before_script handles some extra setup of the environment. It fetches a
