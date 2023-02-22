@@ -12,10 +12,10 @@ test_touchdetector:
     strategy: depend
   variables:
     GITLAB_PIPELINES_BRANCH: ${CI_COMMIT_BRANCH}
-test_coreneuron:
+test_neuron:
   stage: test
   trigger:
-    project: hpc/coreneuron
+    project: hpc/cellular/nrn
     strategy: depend
   variables:
     GITLAB_PIPELINES_BRANCH: ${CI_COMMIT_BRANCH}
