@@ -307,7 +307,7 @@ include: 'bbp-gitlab-access.yml'
     # build jobs will duplicate these values.
     - echo "SPACK_BUILD_DIR=${SPACK_BUILD_DIR}" > ${CI_PROJECT_DIR}/spack_build_info.env
     - echo "SPACK_FULL_SPEC=${SPACK_FULL_SPEC}" >> ${CI_PROJECT_DIR}/spack_build_info.env
-    - echo "SPACK_EXTRA_FLAGS=${SPACK_EXTRA_FLAGS}" >> ${CI_PROJECT_DIR/spack_build_info.env
+    - echo "SPACK_EXTRA_FLAGS=${SPACK_EXTRA_FLAGS}" >> ${CI_PROJECT_DIR}/spack_build_info.env
     - echo "SPACK_SOURCE_DIR=${SPACK_SOURCE_DIR}" >> ${CI_PROJECT_DIR}/spack_build_info.env
     - echo "SPACK_INSTALLED_HASH=${SPACK_INSTALLED_HASH}" >> ${CI_PROJECT_DIR}/spack_build_info.env
     - SPACK_PACKAGE_SLUGIFY=$(echo -n ${SPACK_PACKAGE} | tr -c '[:alnum:]' '_' | tr '[:lower:]' '[:upper:]')
