@@ -51,11 +51,8 @@ include: 'bbp-gitlab-access.yml'
   stage: .pre
   extends: .gitlab_pipelines_variables
   variables:
-    # FIXME remove again
-    SPACK_DEPLOYMENT_SUFFIX: pulls/1765
     # What version of BlueBrain/spack to use. You can override this if need be.
-    # FIXME
-    SPACK_BRANCH: up-the-stream
+    SPACK_BRANCH: develop
     # Which URL to use to check out spack
     SPACK_URL: https://github.com/BlueBrain/spack.git
   # before_script handles some extra setup of the environment. It fetches a
@@ -127,7 +124,7 @@ include: 'bbp-gitlab-access.yml'
   script:
     # Prefer the 2022 deployment modules.
     - unset MODULEPATH
-    - . /gpfs/bbp.cscs.ch/ssd/apps/bsd/${SPACK_DEPLOYMENT_SUFFIX}/config/modules.sh
+    - . /gpfs/bbp.cscs.ch/ssd/apps/bsd/config/modules.sh
     - echo "MODULEPATH=${MODULEPATH}" > spack_clone_variables.env
     - echo Preparing to clone Spack into ${PWD}
     - if [[ -z "${SPACK_BRANCH}" && ( -n "${SPACK_COMMIT}" || -n "${SPACK_TAG}" ) ]]; then
@@ -138,7 +135,7 @@ include: 'bbp-gitlab-access.yml'
     - git clone -c feature.manyFiles=true --depth 1 --single-branch --branch ${SPACK_BRANCH} ${SPACK_URL} spack
     - export SPACK_ROOT=${PWD}/spack
     - export SPACK_USER_CACHE_PATH="${CI_BUILDS_DIR}"
-    - export SPACK_SYSTEM_CONFIG_PATH="/gpfs/bbp.cscs.ch/ssd/apps/bsd/${SPACK_DEPLOYMENT_SUFFIX}/config"
+    - export SPACK_SYSTEM_CONFIG_PATH="/gpfs/bbp.cscs.ch/ssd/apps/bsd/config"
     - echo "SPACK_ROOT=${SPACK_ROOT}" >> spack_clone_variables.env
     - echo "SPACK_USER_CACHE_PATH=${SPACK_USER_CACHE_PATH}" >> spack_clone_variables.env
     - echo "SPACK_SYSTEM_CONFIG_PATH=${SPACK_SYSTEM_CONFIG_PATH}" >> spack_clone_variables.env
@@ -167,7 +164,6 @@ include: 'bbp-gitlab-access.yml'
     # but it should not refer to any paths in the pipeline working directory.
     # spack_clone_variables.env additionally includes paths such as SPACK_ROOT.
     - echo "SPACK_BRANCH=${SPACK_BRANCH}" >> commit-mapping.env
-    - echo "SPACK_DEPLOYMENT_SUFFIX=${SPACK_DEPLOYMENT_SUFFIX}" >> commit-mapping.env
     - cat commit-mapping.env >> spack_clone_variables.env
     # Trigger bootstrapping and so on, check everything looks OK
     - spack spec -IL ninja
