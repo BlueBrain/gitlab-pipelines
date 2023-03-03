@@ -124,7 +124,7 @@ include: 'bbp-gitlab-access.yml'
   script:
     # Prefer the 2022 deployment modules.
     - unset MODULEPATH
-    - . /gpfs/bbp.cscs.ch/ssd/apps/bsd/config/modules.sh
+    - . /gpfs/bbp.cscs.ch/ssd/apps/bsd/${SPACK_DEPLOYMENT_SUFFIX}/config/modules.sh
     - echo "MODULEPATH=${MODULEPATH}" > spack_clone_variables.env
     - echo Preparing to clone Spack into ${PWD}
     - if [[ -z "${SPACK_BRANCH}" && ( -n "${SPACK_COMMIT}" || -n "${SPACK_TAG}" ) ]]; then
@@ -135,7 +135,7 @@ include: 'bbp-gitlab-access.yml'
     - git clone -c feature.manyFiles=true --depth 1 --single-branch --branch ${SPACK_BRANCH} ${SPACK_URL} spack
     - export SPACK_ROOT=${PWD}/spack
     - export SPACK_USER_CACHE_PATH="${CI_BUILDS_DIR}"
-    - export SPACK_SYSTEM_CONFIG_PATH="/gpfs/bbp.cscs.ch/ssd/apps/bsd/config"
+    - export SPACK_SYSTEM_CONFIG_PATH="/gpfs/bbp.cscs.ch/ssd/apps/bsd/${SPACK_DEPLOYMENT_SUFFIX}/config"
     - echo "SPACK_ROOT=${SPACK_ROOT}" >> spack_clone_variables.env
     - echo "SPACK_USER_CACHE_PATH=${SPACK_USER_CACHE_PATH}" >> spack_clone_variables.env
     - echo "SPACK_SYSTEM_CONFIG_PATH=${SPACK_SYSTEM_CONFIG_PATH}" >> spack_clone_variables.env
@@ -164,6 +164,7 @@ include: 'bbp-gitlab-access.yml'
     # but it should not refer to any paths in the pipeline working directory.
     # spack_clone_variables.env additionally includes paths such as SPACK_ROOT.
     - echo "SPACK_BRANCH=${SPACK_BRANCH}" >> commit-mapping.env
+    - echo "SPACK_DEPLOYMENT_SUFFIX=${SPACK_DEPLOYMENT_SUFFIX}" >> commit-mapping.env
     - cat commit-mapping.env >> spack_clone_variables.env
     # Trigger bootstrapping and so on, check everything looks OK
     - spack spec -IL ninja
