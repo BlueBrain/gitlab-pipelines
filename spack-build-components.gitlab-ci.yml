@@ -217,25 +217,10 @@ include: 'bbp-gitlab-access.yml'
     - spack config blame config
     # Tell Git how to re-write BBP GitLab URLs to use a token instead of SSH
     - !reference [.bbp_gitlab_access, script]
-    # Get the hash of the version we're about to install. First, construct the
-    # full spec. This includes ${SPACK_PACKAGE_COMPILER} and ${SPACK_PACKAGE_DEPENDENCIES} if
-    # they are not empty.
+    # First, construct the full spec. This includes ${SPACK_PACKAGE_COMPILER} and
+    # ${SPACK_PACKAGE_DEPENDENCIES} if they are not empty.
     - SPACK_FULL_SPEC="${SPACK_PACKAGE}${SPACK_PACKAGE_COMPILER:+%}${SPACK_PACKAGE_COMPILER} ${SPACK_PACKAGE_SPEC} ${SPACK_PACKAGE_DEPENDENCIES} ${SPACK_PACKAGE_DEPENDENCY_ON_PREVIOUS_JOB}"
     - echo "Preparing to install ${SPACK_FULL_SPEC}"
-    # Then extract the hash
-    - JSON_SPEC=$(spack spec --json ${SPACK_FULL_SPEC})
-    - SPACK_INSTALLED_HASH=$(module load unstable python; echo "${JSON_SPEC}" | python -c "import json, sys; print(json.loads(sys.stdin.read())[\"spec\"][\"nodes\"][0][\"hash\"])")
-    - echo "Determined its hash will be ${SPACK_INSTALLED_HASH}"
-    # Construct the directories Spack is going to use to build the package.
-    # For a CMake project the source directory will be:
-    #   ${SPACK_STAGE_DIR}/spack-src
-    # and the build directoy will by default be
-    #   ${SPACK_STAGE_DIR}/spack-build-{short_hash}
-    # TODO: to improve ccache support, drop the {short_hash} part. This needs a
-    # change to `cmake.py` in Spack.
-    - SPACK_STAGE_DIR=${SPACK_BUILD}/spack-stage-${SPACK_PACKAGE}-develop-${SPACK_INSTALLED_HASH}
-    - SPACK_BUILD_DIR=${SPACK_STAGE_DIR}/spack-build-${SPACK_INSTALLED_HASH:0:7}
-    - SPACK_SOURCE_DIR=${SPACK_STAGE_DIR}/spack-src
     # ccache-specific setup, only if it was enabled
     - if [ ${SPACK_USE_CCACHE+x} ]; then
     # Load a more modern ccache version.
@@ -273,14 +258,29 @@ include: 'bbp-gitlab-access.yml'
     # include `--dependents` so that if we are installing `lib` and then `app`
     # that depends on it then re-trying to build `lib` after `app` has been
     # installed will uninstall both `lib` and `app` instead of neither.
-    - spack uninstall -y --dependents /${SPACK_INSTALLED_HASH} || true
+    - spack uninstall -a -y --dependents ${SPACK_FULL_SPEC} || true
     # Show what we're going to do, ignore the duplication with `spack spec`
     # above for now
     - spack spec -Il ${SPACK_FULL_SPEC}
     # Install that new version. Use an absolute path for install.xml so it ends
     # up in the original job working directory even if that's no longer the
     # working directory.
-    - spack ${SPACK_INSTALL_EXTRA_FLAGS} install -j${SLURM_CPUS_PER_TASK} --log-format=junit --log-file=${CI_PROJECT_DIR}/install.xml --keep-stage ${SPACK_FULL_SPEC} || install_failed=1
+    - set -o pipefail
+    - (spack ${SPACK_INSTALL_EXTRA_FLAGS} install -j${SLURM_CPUS_PER_TASK} --log-format=junit --log-file=${CI_PROJECT_DIR}/install.xml --keep-stage ${SPACK_FULL_SPEC} | tee log) || install_failed=1
+    - set +o pipefail
+    # Then extract the hash from the log - FIXME this may be very brittle
+    - SPACK_INSTALLED_HASH=$(spack find --format "{hash}" /$(sed -ne '${s/.*-//;p}' log))
+    - echo "Determined the installed hash to be ${SPACK_INSTALLED_HASH}"
+    # Construct the directories Spack is going to use to build the package.
+    # For a CMake project the source directory will be:
+    #   ${SPACK_STAGE_DIR}/spack-src
+    # and the build directoy will by default be
+    #   ${SPACK_STAGE_DIR}/spack-build-{short_hash}
+    # TODO: to improve ccache support, drop the {short_hash} part. This needs a
+    # change to `cmake.py` in Spack.
+    - SPACK_STAGE_DIR=${SPACK_BUILD}/spack-stage-${SPACK_PACKAGE}-develop-${SPACK_INSTALLED_HASH}
+    - SPACK_BUILD_DIR=${SPACK_STAGE_DIR}/spack-build-${SPACK_INSTALLED_HASH:0:7}
+    - SPACK_SOURCE_DIR=${SPACK_STAGE_DIR}/spack-src
     # Try and improve debuggability, Spack likes making things only-owner-readable.
     - chmod -R g+rX "${SPACK_BUILD}"
     # Exit if we failed just above.
