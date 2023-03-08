@@ -214,7 +214,9 @@ include: 'bbp-gitlab-access.yml'
         - ${SPACK_BUILD}
         source_cache: ${PWD}/spack-source-cache
       END_SCRIPT
+    - spack config add concretizer:reuse:false
     - spack config blame config
+    - spack config blame concretizer
     # Tell Git how to re-write BBP GitLab URLs to use a token instead of SSH
     - !reference [.bbp_gitlab_access, script]
     # First, construct the full spec. This includes ${SPACK_PACKAGE_COMPILER} and
@@ -252,13 +254,6 @@ include: 'bbp-gitlab-access.yml'
     # Spack needs a recent Git version. It possible to load additional
     # modules through the SPACK_EXTRA_MODULES environment variable.
     - module load unstable git ${SPACK_EXTRA_MODULES}
-    # *Un*install this spec first. This can be helpful when resubmitting failed
-    # jobs, for example if the GitLab job finalisation fails then the package
-    # might have been successfully installed to the pipeline's Spack tree. Also
-    # include `--dependents` so that if we are installing `lib` and then `app`
-    # that depends on it then re-trying to build `lib` after `app` has been
-    # installed will uninstall both `lib` and `app` instead of neither.
-    - spack uninstall -a -y --dependents ${SPACK_FULL_SPEC} || true
     # Show what we're going to do, ignore the duplication with `spack spec`
     # above for now
     - spack spec -Il ${SPACK_FULL_SPEC}
@@ -266,7 +261,7 @@ include: 'bbp-gitlab-access.yml'
     # up in the original job working directory even if that's no longer the
     # working directory.
     - set -o pipefail
-    - (spack ${SPACK_INSTALL_EXTRA_FLAGS} install -j${SLURM_CPUS_PER_TASK} --log-format=junit --log-file=${CI_PROJECT_DIR}/install.xml --keep-stage ${SPACK_FULL_SPEC} | tee log) || install_failed=1
+    - (spack ${SPACK_INSTALL_EXTRA_FLAGS} install --overwrite -y -j${SLURM_CPUS_PER_TASK} --log-format=junit --log-file=${CI_PROJECT_DIR}/install.xml --keep-stage ${SPACK_FULL_SPEC} | tee log) || install_failed=1
     - set +o pipefail
     # Then extract the hash from the log - FIXME this may be very brittle
     - SPACK_INSTALLED_HASH=$(spack find --format "{hash}" /$(sed -ne '${s/.*-//;p}' log))
