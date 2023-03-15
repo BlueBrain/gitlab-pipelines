@@ -264,10 +264,15 @@ include: 'bbp-gitlab-access.yml'
     # working directory.
     - set -o pipefail
     - (spack ${SPACK_INSTALL_EXTRA_FLAGS} install --overwrite -y -j${SLURM_CPUS_PER_TASK} --log-format=junit --log-file=${CI_PROJECT_DIR}/install.xml --keep-stage ${SPACK_FULL_SPEC} | tee log) || install_failed=1
+    # Try and improve debuggability, Spack likes making things only-owner-readable.
+    - chmod -R g+rX "${SPACK_BUILD}"
+    # Exit if we failed just above.
+    - if [[ ${install_failed} == 1 ]]; then exit 1; fi
     - set +o pipefail
     # Then extract the hash from the log - FIXME this may be very brittle
     - SPACK_INSTALLED_HASH=$(spack find --format "{hash}" /$(sed -ne '${s/.*-//;p}' log))
     - SPACK_INSTALLED_VERSION=$(spack find --format "{version}" /$(sed -ne '${s/.*-//;p}' log))
+    - set -o pipefail
     - echo "Determined the installed hash to be ${SPACK_INSTALLED_HASH}"
     - echo "Determined the installed version to be ${SPACK_INSTALLED_VERSION}"
     # Construct the directories Spack is going to use to build the package.
@@ -280,10 +285,6 @@ include: 'bbp-gitlab-access.yml'
     - SPACK_STAGE_DIR=${SPACK_BUILD}/spack-stage-${SPACK_PACKAGE}-${SPACK_INSTALLED_VERSION}-${SPACK_INSTALLED_HASH}
     - SPACK_BUILD_DIR=${SPACK_STAGE_DIR}/spack-build-${SPACK_INSTALLED_HASH:0:7}
     - SPACK_SOURCE_DIR=${SPACK_STAGE_DIR}/spack-src
-    # Try and improve debuggability, Spack likes making things only-owner-readable.
-    - chmod -R g+rX "${SPACK_BUILD}"
-    # Exit if we failed just above.
-    - if [[ ${install_failed} == 1 ]]; then exit 1; fi
     - if [ ${SPACK_USE_CCACHE+x} ]; then
     # Report ccache statistics if ccache was enabled.
     - ccache --cleanup
