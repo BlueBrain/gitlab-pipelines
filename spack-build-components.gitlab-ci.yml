@@ -156,7 +156,7 @@ include: 'bbp-gitlab-access.yml'
     # seem to be set if the `bb5` tag is used, and are duplicates that should
     # be ignored. This sed command deletes lines starting with CUSTOM_ENV_ and
     # then prints lines starting with [^=]\+_\(BRANCH\|COMMIT\|TAG\)=.\+
-    - env -0 | sed -nz '/^CUSTOM_ENV_/d;/^[^=]\+_\(BRANCH\|COMMIT\|TAG\)=.\+/p' | xargs -0t spack configure-pipeline --ignore-packages CI_BUILD CI_COMMIT CI_DEFAULT GITLAB_PIPELINES SPACK ${SPACK_SETUP_IGNORE_PACKAGE_VARIABLES} --write-commit-file=commit-mapping.env
+    - env -0 | sed -nz '/^CUSTOM_ENV_/d;/^[^=]\+_\(BRANCH\|COMMIT\|TAG\)=.\+/p' | xargs -0t spack configure-pipeline --scope system --ignore-packages CI_BUILD CI_COMMIT CI_DEFAULT GITLAB_PIPELINES SPACK ${SPACK_SETUP_IGNORE_PACKAGE_VARIABLES} --write-commit-file=commit-mapping.env
     # Show what we did for debugging purposes.
     - (cd "${SPACK_ROOT}" && git diff)
     - spack config blame packages
