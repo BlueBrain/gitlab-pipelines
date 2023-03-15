@@ -52,7 +52,8 @@ include: 'bbp-gitlab-access.yml'
   extends: .gitlab_pipelines_variables
   variables:
     # What version of BlueBrain/spack to use. You can override this if need be.
-    SPACK_BRANCH: develop
+    SPACK_BRANCH: configure-git-versions
+    SPACK_DEPLOYMENT_SUFFIX: pulls/1900
     # Which URL to use to check out spack
     SPACK_URL: https://github.com/BlueBrain/spack.git
   # before_script handles some extra setup of the environment. It fetches a
@@ -158,6 +159,7 @@ include: 'bbp-gitlab-access.yml'
     - env -0 | sed -nz '/^CUSTOM_ENV_/d;/^[^=]\+_\(BRANCH\|COMMIT\|TAG\)=.\+/p' | xargs -0t spack configure-pipeline --ignore-packages CI_BUILD CI_COMMIT CI_DEFAULT GITLAB_PIPELINES SPACK ${SPACK_SETUP_IGNORE_PACKAGE_VARIABLES} --write-commit-file=commit-mapping.env
     # Show what we did for debugging purposes.
     - (cd "${SPACK_ROOT}" && git diff)
+    - spack config blame packages
     - cat commit-mapping.env # Exporting the following variables for subsequent jobs
     # The logic here is that commit-mapping.env should include all of the
     # branches/commits/external information needed to produce the same Spack,
