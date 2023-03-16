@@ -212,6 +212,11 @@ include: 'bbp-gitlab-access.yml'
     - |
       cat > ${SPACK_USER_CONFIG_PATH}/config.yaml << END_SCRIPT
       config:
+        install_tree:
+          projections:
+            # {version} may contain "=" and that nvhpc does not handle that well, at all.
+            # Thanks, NVIDIA!
+            all: install_{compiler.name}-{compiler.version}-{target}/{name}-{hash:6}
         build_stage::
         - ${SPACK_BUILD}
         source_cache: ${PWD}/spack-source-cache
