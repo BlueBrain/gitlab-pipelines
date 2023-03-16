@@ -134,6 +134,8 @@ include: 'bbp-gitlab-access.yml'
     - echo Checking out the ${SPACK_BRANCH} of Spack...
     - module load unstable git
     - git clone -c feature.manyFiles=true --depth 1 --single-branch --branch ${SPACK_BRANCH} ${SPACK_URL} spack
+    # FIXME ¡¡¡This is an ugly hack!!!
+    - sed -i -e '/stage_name =/{s/s\.version/"blargh"/g}' spack/lib/spack/spack/package_base.py
     - export SPACK_ROOT=${PWD}/spack
     - export SPACK_USER_CACHE_PATH="${CI_BUILDS_DIR}"
     - export SPACK_SYSTEM_CONFIG_PATH="/gpfs/bbp.cscs.ch/ssd/apps/bsd/${SPACK_DEPLOYMENT_SUFFIX}/config"
