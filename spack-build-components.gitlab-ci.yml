@@ -90,10 +90,12 @@ include: 'bbp-gitlab-access.yml'
                              headers={'Accept': 'application/vnd.github.v3+json'})
       pr_body = pr_info.json()["body"]
       # match something like NEURON_BRANCH=foo/bar
+      # special case for SPACK_DEPLOYMENT_SUFFIX=foo/bar
       pat = re.compile('^([A-Z0-9_]+)_([A-Z]+)=([A-Z0-9\-\_\/\+\.]+)$', re.IGNORECASE)
       def parse_term(m):
         ref_type = m.group(2).lower()
-        if ref_type not in {'branch', 'tag', 'ref'}: return
+        is_deployment_suffix = ref_type == 'suffix' and m.group(1).lower() == 'spack_deployment'
+        if ref_type not in {'branch', 'tag', 'ref'} and not is_deployment_suffix: return
         print(m.group(1).upper() + '_' + ref_type.upper() + '=' + m.group(3))
       if pr_body is not None:
         for pr_body_line in pr_body.splitlines():
