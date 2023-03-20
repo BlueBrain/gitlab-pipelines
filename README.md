@@ -65,10 +65,9 @@ The following variables are used in the template:
   `SPACK_DEPLOYMENT_SUFFIX`. In principle this contains enough information to
   reproduce the same Spack setup in a downstream pipeline, but it does not
   contain any references to paths in the current pipeline working directory.
-* `SPACK_INSTALL_EXTRA_FLAGS` (optional, debug): these arguments are passed to
-  the install command as `spack ${SPACK_INSTALL_EXTRA_FLAGS} install ...`. It
-  may be useful to set this to `--debug`, `-ddd` etc. when manually launching a
-  problematic pipeline.
+* `SPACK_EXTRA_FLAGS` (optional, debug): these arguments are passed to `spack`
+  commands. It may be useful to use this to set debug options, or to locally
+  override configuration options with `-c`.
 * `SPACK_EXTRA_MODULES` (optional): list of modules to load before building
   with Spack.
 * `SPACK_DEPLOYMENT_SUFFIX` (optional): extra component added to the GPFS path
