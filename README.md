@@ -57,6 +57,10 @@ The following variables are used in the template:
   commit or tag variables appear in the environment. For example, if you add
   `BLUECONFIGS` to this list, `BLUECONFIGS_BRANCH` will be ignored if it is set
   in the environment.
+* `SPACK_RESOLVED_COMMIT` (output by spack_setup): the Git commit that
+  `SPACK_BRANCH` resolved to. This can be used for storing provenance
+  information. It is not read from internally, and child pipelines do not check
+  for consistency.
 * `SPACK_SETUP_COMMIT_MAPPING_URL` (output by spack_setup): the GitLab
   API URL of an artifact file produced by the `spack_setup` job that contains:
   a `{upper_case_package_name}_COMMIT=hash` line for every package whose recipe

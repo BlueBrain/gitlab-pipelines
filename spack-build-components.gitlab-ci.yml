@@ -136,9 +136,11 @@ include: 'bbp-gitlab-access.yml'
     - module load unstable git
     - git clone -c feature.manyFiles=true --depth 1 --single-branch --branch ${SPACK_BRANCH} ${SPACK_URL} spack
     - export SPACK_ROOT=${PWD}/spack
+    - export SPACK_RESOLVED_COMMIT=$(cd "${SPACK_ROOT}" && git rev-parse HEAD)
     - export SPACK_USER_CACHE_PATH="${CI_BUILDS_DIR}"
     - export SPACK_SYSTEM_CONFIG_PATH="/gpfs/bbp.cscs.ch/ssd/apps/bsd/${SPACK_DEPLOYMENT_SUFFIX}/config"
     - echo "SPACK_ROOT=${SPACK_ROOT}" >> spack_clone_variables.env
+    - echo "SPACK_RESOLVED_COMMIT=${SPACK_RESOLVED_COMMIT}" >> spack_clone_variables.env
     - echo "SPACK_USER_CACHE_PATH=${SPACK_USER_CACHE_PATH}" >> spack_clone_variables.env
     - echo "SPACK_SYSTEM_CONFIG_PATH=${SPACK_SYSTEM_CONFIG_PATH}" >> spack_clone_variables.env
     - . ${SPACK_ROOT}/share/spack/setup-env.sh
@@ -157,7 +159,7 @@ include: 'bbp-gitlab-access.yml'
     # seem to be set if the `bb5` tag is used, and are duplicates that should
     # be ignored. This sed command deletes lines starting with CUSTOM_ENV_ and
     # then prints lines starting with [^=]\+_\(BRANCH\|COMMIT\|TAG\)=.\+
-    - env -0 | sed -nz '/^CUSTOM_ENV_/d;/^[^=]\+_\(BRANCH\|COMMIT\|TAG\)=.\+/p' | xargs -0t spack ${SPACK_EXTRA_FLAGS} configure-pipeline --ignore-packages CI_BUILD CI_COMMIT CI_DEFAULT GITLAB_PIPELINES SPACK ${SPACK_SETUP_IGNORE_PACKAGE_VARIABLES} --write-commit-file=commit-mapping.env
+    - env -0 | sed -nz '/^CUSTOM_ENV_/d;/^[^=]\+_\(BRANCH\|COMMIT\|TAG\)=.\+/p' | xargs -0t spack ${SPACK_EXTRA_FLAGS} configure-pipeline --ignore-packages CI_BUILD CI_COMMIT CI_DEFAULT GITLAB_PIPELINES SPACK SPACK_RESOLVED ${SPACK_SETUP_IGNORE_PACKAGE_VARIABLES} --write-commit-file=commit-mapping.env
     # Show what we did for debugging purposes.
     - (cd "${SPACK_ROOT}" && git diff)
     - cat commit-mapping.env # Exporting the following variables for subsequent jobs
