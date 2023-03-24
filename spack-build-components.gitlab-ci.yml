@@ -268,6 +268,10 @@ include: 'bbp-gitlab-access.yml'
     - set +o pipefail
     # Then extract the hash from the log - FIXME this may be very brittle
     - SPACK_INSTALLED_HASH=$(spack ${SPACK_EXTRA_FLAGS} find --format "{hash}" /$(sed -ne '${s/.*-//;p}' log))
+    # Try and improve debuggability, Spack likes making things only-owner-readable.
+    - chmod -R g+rX "${SPACK_BUILD}"
+    # Exit if we failed just above.
+    - if [[ ${install_failed} == 1 ]]; then exit 1; fi
     - echo "Determined the installed hash to be ${SPACK_INSTALLED_HASH}"
     # Construct the directories Spack is going to use to build the package.
     # For a CMake project the source directory will be:
@@ -279,10 +283,6 @@ include: 'bbp-gitlab-access.yml'
     - SPACK_STAGE_DIR=${SPACK_BUILD}/spack-stage-${SPACK_PACKAGE}-develop-${SPACK_INSTALLED_HASH}
     - SPACK_BUILD_DIR=${SPACK_STAGE_DIR}/spack-build-${SPACK_INSTALLED_HASH:0:7}
     - SPACK_SOURCE_DIR=${SPACK_STAGE_DIR}/spack-src
-    # Try and improve debuggability, Spack likes making things only-owner-readable.
-    - chmod -R g+rX "${SPACK_BUILD}"
-    # Exit if we failed just above.
-    - if [[ ${install_failed} == 1 ]]; then exit 1; fi
     - if [ ${SPACK_USE_CCACHE+x} ]; then
     # Report ccache statistics if ccache was enabled.
     - ccache --cleanup
