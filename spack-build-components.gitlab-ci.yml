@@ -266,12 +266,12 @@ include: 'bbp-gitlab-access.yml'
     - set -o pipefail
     - (spack ${SPACK_EXTRA_FLAGS} install --overwrite -y -j${SLURM_CPUS_PER_TASK} --log-format=junit --log-file=${CI_PROJECT_DIR}/install.xml --keep-stage ${SPACK_FULL_SPEC} | tee log) || install_failed=1
     - set +o pipefail
-    # Then extract the hash from the log - FIXME this may be very brittle
-    - SPACK_INSTALLED_HASH=$(spack ${SPACK_EXTRA_FLAGS} find --format "{hash}" /$(sed -ne '${s/.*-//;p}' log))
     # Try and improve debuggability, Spack likes making things only-owner-readable.
     - chmod -R g+rX "${SPACK_BUILD}"
     # Exit if we failed just above.
     - if [[ ${install_failed} == 1 ]]; then exit 1; fi
+    # Then extract the hash from the log - FIXME this may be very brittle
+    - SPACK_INSTALLED_HASH=$(spack ${SPACK_EXTRA_FLAGS} find --format "{hash}" /$(sed -ne '${s/.*-//;p}' log))
     - echo "Determined the installed hash to be ${SPACK_INSTALLED_HASH}"
     # Construct the directories Spack is going to use to build the package.
     # For a CMake project the source directory will be:
