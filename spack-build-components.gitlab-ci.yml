@@ -306,7 +306,14 @@ include: 'bbp-gitlab-access.yml'
     # Return a meaningful status code by inspecting install.xml. This only
     # loads modules in a subshell so it doesn't pollute the environment. The
     # snippet counts the number of <failure> tags in the XML.
-    - num_failures=$(module load unstable python-dev; python -c "from lxml import etree; xml = etree.parse('${CI_PROJECT_DIR}/install.xml'); print(sum(1 for _ in xml.getroot().iter('failure')) + sum(1 for _ in xml.getroot().iter('error')))")
+    - |
+      num_failures=$(module load unstable python-dev; python <<EOF
+      from lxml import etree
+      parser = etree.XMLParser(huge_tree=True)
+      with open('${CI_PROJECT_DIR}/install.xml', 'r') as fp:
+        tree = etree.fromstring(fp.read().encode(), parser=parser)
+      print(sum(1 for _ in tree.getroottree().iter('failure')) + sum(1 for _ in tree.getroottree().iter('error')))
+      EOF)
     - if [[ ${num_failures} > 0 ]]; then exit ${num_failures}; fi
   needs: ["spack_setup"]
   artifacts:
