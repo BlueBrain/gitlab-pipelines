@@ -1,21 +1,3 @@
-test_functionalizer:
-  stage: test
-  trigger:
-    project: hpc/circuit-building/spykfunc
-    strategy: depend
-  variables:
-    GITLAB_PIPELINES_BRANCH: ${CI_COMMIT_BRANCH}
-test_touchdetector:
-  stage: test
-  trigger:
-    project: hpc/circuit-building/touchdetector
-    strategy: depend
-  variables:
-    GITLAB_PIPELINES_BRANCH: ${CI_COMMIT_BRANCH}
-test_neuron:
-  stage: test
-  trigger:
-    project: hpc/cellular/nrn
-    strategy: depend
-  variables:
-    GITLAB_PIPELINES_BRANCH: ${CI_COMMIT_BRANCH}
+no-op:
+  script:
+    - echo "Do nothing"
